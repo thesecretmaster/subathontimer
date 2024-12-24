@@ -1,0 +1,17 @@
+{
+  "name": "subathon",
+  "version": "1.0.0",
+  "description": "cross streaming platform subathon timer",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "jakezsr",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^33.2.1"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}
