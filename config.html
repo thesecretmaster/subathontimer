@@ -1,23 +1,26 @@
 <!DOCTYPE html>
+<link rel="stylesheet" href="global.css">
 <html>
 <head>
   <meta charset="UTF-8">
   <title>API Configuration</title>
 </head>
 <body>
-  <h2>Configure StreamElements API Keys</h2>
+  <main class="noBarMain">
+  <h2>StreamElements API Keys</h2>
   <form id="apiForm">
     <div>
       <label>Twitch Channel JWT:</label>
-      <input type="text" id="twitchClientId" required>
+      <input type="password" id="twitchClientId" required>
     </div>
     <div>
       <label>YouTube Channel JWT:</label>
-      <input type="text" id="youtubeApiKey" required>
+      <input type="password" id="youtubeApiKey" required>
     </div>
+    <br>
     <button type="submit">Save</button>
   </form>
-  <button onclick="findTokens()">Find JWT Tokens</button>
+  <button class="subButton" onclick="findTokens()">Find JWT Tokens</button>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       // Retrieve saved keys
@@ -39,5 +42,6 @@
         window.open("https://dev.streamelements.com/docs/api-docs/ae133ffaf8c1a-personal-access-using-jwt-secert-token-to-access-the-api");
     }
   </script>
+  </main>
 </body>
 </html>

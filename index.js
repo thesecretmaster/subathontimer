@@ -14,6 +14,7 @@ function createWindow() {
     width: 300,
     height: 200,
     resizable: false,
+    autoHideMenuBar: true,
     modal: true,
     webPreferences: {
       nodeIntegration: true, 
@@ -86,10 +87,11 @@ function createSubathonConfigWindow() {
     }
 
     subathonConfigWindow = new BrowserWindow({
-        width: 375,
-        height: 600,
+        width: 450,
+        height: 700,
         parent: mainWindow,
         resizable: false,
+        autoHideMenuBar: true,
         modal: true,
         webPreferences: {
             preload: path.join(__dirname, 'preloads/preload-subsettings.js'),
@@ -139,8 +141,10 @@ function createConfigWindow() {
   }
 
   configWindow = new BrowserWindow({
-    width: 400,
-    height: 300,
+    width: 350,
+    height: 500,
+    autoHideMenuBar: true,
+    resizable: false,
     parent: mainWindow,
     modal: true,
     webPreferences: {
