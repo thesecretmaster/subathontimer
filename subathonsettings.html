@@ -33,8 +33,8 @@
 
     <h2>YouTube Increment</h2>
     <div>
-      <label for="youtubeIncrement">Member Increment (seconds):</label>
-      <input type="number" id="youtubeIncrement" name="youtubeIncrement" required>
+      <label for="memberIncrement">Member Increment (seconds):</label>
+      <input type="number" id="memberIncrement" name="memberIncrement" required>
     </div>
     <div>
       <label for="superchatIncrement">Superchat Increment (seconds per $1):</label>
@@ -43,4 +43,33 @@
     <button type="submit">Save Settings</button>
   </form>
 </body>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Retrieve saved keys
+    const { startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement } = await window.electronAPI.getSettings();
+    document.getElementById('startingTime').value = startingTime || '';
+    document.getElementById('tier1Increment').value = tier1Increment || '';
+    document.getElementById('tier2Increment').value = tier2Increment || '';
+    document.getElementById('tier3Increment').value = tier3Increment || '';
+    document.getElementById('bitIncrement').value = bitIncrement || '';
+
+    document.getElementById('memberIncrement').value = memberIncrement || '';
+    document.getElementById('superchatIncrement').value = superchatIncrement || '';
+  });
+
+  const form = document.getElementById('subathonForm');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const startingTime = document.getElementById('startingTime').value;
+    const tier1Increment = document.getElementById('tier1Increment').value;
+    const tier2Increment = document.getElementById('tier2Increment').value;
+    const tier3Increment = document.getElementById('tier3Increment').value;
+    const bitIncrement = document.getElementById('bitIncrement').value;
+
+    const memberIncrement = document.getElementById('memberIncrement').value;
+    const superchatIncrement = document.getElementById('superchatIncrement').value;
+
+    window.electronAPI.saveSettings({ startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
+  });
+</script>
 </html>

@@ -1,0 +1,9 @@
+{
+  "startingTime": "300",
+  "tier1Increment": "10",
+  "tier2Increment": "20",
+  "tier3Increment": "30",
+  "bitIncrement": "1",
+  "memberIncrement": "10",
+  "superchatIncrement": "1"
+}

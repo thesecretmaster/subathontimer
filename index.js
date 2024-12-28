@@ -6,6 +6,9 @@ let configWindow;
 let subathonConfigWindow;
 let subathonControlsWindow;
 
+///
+/// Main Window
+///
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 300,
@@ -45,6 +48,10 @@ function createWindow() {
   });
 }
 
+///
+/// Subathon Controls Window
+///
+
 function createSubathonControlsWindow() {
     if(subathonControlsWindow) {
         subathonControlsWindow.focus();
@@ -68,6 +75,10 @@ function createSubathonControlsWindow() {
     });
 }
 
+///
+/// Subathon Settings Window
+///
+
 function createSubathonConfigWindow() {
     if(subathonConfigWindow) {
         subathonConfigWindow.focus();
@@ -81,6 +92,7 @@ function createSubathonConfigWindow() {
         resizable: false,
         modal: true,
         webPreferences: {
+            preload: path.join(__dirname, 'preloads/preload-subsettings.js'),
             nodeIntegration: false,
             contextIsolation: false
           }
@@ -91,6 +103,34 @@ function createSubathonConfigWindow() {
         subathonConfigWindow = null
     });
 }
+
+// Take settings from settings window and save them
+ipcMain.on('save-sub-settings', (event, { startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }) => {
+  fs.writeFileSync('subSettings.json', JSON.stringify({ startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }, null, 2));
+  console.log('Received credentials:', { startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
+
+  if (configWindow) {
+    configWindow.close();
+  }
+});
+
+// Get and Restore settings
+ipcMain.handle('get-sub-settings', async () => {
+  let config = { startingTime: '', tier1Increment: '', tier2Increment: '', tier3Increment: '', bitIncrement: '', memberIncrement: '', superchatIncrement: '' };
+  try {
+    if (fs.existsSync('subSettings.json')) {
+      const data = fs.readFileSync('subSettings.json', 'utf-8');
+      config = JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Error reading subSettings.json:', err);
+  }
+  return config;
+});
+
+///
+/// API Key Window
+///
 
 function createConfigWindow() {
   if (configWindow) {
@@ -104,7 +144,7 @@ function createConfigWindow() {
     parent: mainWindow,
     modal: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload-apiconfig.js'),
+      preload: path.join(__dirname, 'preloads/preload-apiconfig.js'),
       nodeIntegration: false,
       contextIsolation: false
     }
@@ -117,7 +157,7 @@ function createConfigWindow() {
   });
 }
 
-// Handle incoming credentials from the config window
+// Take keys from API key window and save them
 ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey }) => {
   fs.writeFileSync('apiConfig.json', JSON.stringify({ twitchClientId, youtubeApiKey }, null, 2));
   console.log('Received credentials:', { twitchClientId, youtubeApiKey });
@@ -127,7 +167,7 @@ ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey }) => {
   }
 });
 
-// Handle request to get saved keys
+// Get and Restore API Keys
 ipcMain.handle('get-api-keys', async () => {
   let config = { twitchClientId: '', youtubeApiKey: '' };
   try {
