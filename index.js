@@ -8,8 +8,9 @@ let subathonControlsWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 300,
+    height: 200,
+    resizable: false,
     modal: true,
     webPreferences: {
       nodeIntegration: true, 
@@ -74,9 +75,10 @@ function createSubathonConfigWindow() {
     }
 
     subathonConfigWindow = new BrowserWindow({
-        width: 400,
-        height: 300,
+        width: 375,
+        height: 600,
         parent: mainWindow,
+        resizable: false,
         modal: true,
         webPreferences: {
             nodeIntegration: false,
@@ -102,7 +104,7 @@ function createConfigWindow() {
     parent: mainWindow,
     modal: true,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload-apiconfig.js'),
       nodeIntegration: false,
       contextIsolation: false
     }

@@ -13,7 +13,7 @@
       <input type="number" id="startingTime" name="startingTime" required>
     </div>
 
-    <h2>Twitch Sub Increments</h2>
+    <h2>Twitch Increments</h2>
     <div>
       <label for="tier1Increment">Tier 1 Increment (seconds):</label>
       <input type="number" id="tier1Increment" name="tier1Increment" required>
@@ -26,13 +26,20 @@
       <label for="tier3Increment">Tier 3 Increment (seconds):</label>
       <input type="number" id="tier3Increment" name="tier3Increment" required>
     </div>
+    <div>
+      <label for="bitIncrement">Bit Increment (seconds per 100bits):</label>
+      <input type="number" id="bitIncrement" name="bitIncrement" required>
+    </div>
 
-    <h2>YouTube Member Increment</h2>
+    <h2>YouTube Increment</h2>
     <div>
       <label for="youtubeIncrement">Member Increment (seconds):</label>
       <input type="number" id="youtubeIncrement" name="youtubeIncrement" required>
     </div>
-
+    <div>
+      <label for="superchatIncrement">Superchat Increment (seconds per $1):</label>
+      <input type="number" id="superchatIncrement" name="superchatIncrement" required>
+    </div>
     <button type="submit">Save Settings</button>
   </form>
 </body>
