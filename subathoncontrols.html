@@ -1,3 +1,53 @@
-<link rel="stylesheet" href="global.css">
-<button>Start Timer</button>
-<button>Pause Timer</button>
+<link rel="stylesheet" href="styles/controls.css">
+<title>Controls</title>
+<body>
+    <div class="controls">
+        <div class="column">
+            <button onclick="startTimer()">Start Timer</button>
+            <br>
+            <button onclick="pauseTimer()">Pause Timer</button>
+        </div>
+        <div class="column">
+            <input type="number" id="multiplier" placeholder="Multiplier (e.g., 2)" min="1">
+            <button onclick="startMultiplier()">Start Multiplier</button>
+            <br>
+            <button onclick="stopMultiplier()">Stop Multiplier</button>
+        </div>
+        <div class="column">
+            <input type="number" id="timeAdjustment" placeholder="Time (seconds)">
+            <button onclick="addTime()">Add Time</button>
+            <br>
+            <button onclick="removeTime()">Remove Time</button>
+        </div>
+    </div>
+
+
+    <script>
+        let multiplierInterval = null;
+
+        function startTimer() {
+            window.electronAPI.startTimer();
+        }
+
+        function pauseTimer() {
+            window.electronAPI.pauseTimer();
+        }
+
+       function startMultiplier() {
+            window.electronAPI.startMultiplier(document.getElementById("multiplier").value);
+       }
+
+       function stopMultiplier() {
+            window.electronAPI.startMultiplier(1);
+       }
+
+       function addTime() {
+            window.electronAPI.addTime(document.getElementById("timeAdjustment").value)
+       }
+
+       function removeTime() {
+            window.electronAPI.removeTime(-document.getElementById("timeAdjustment").value)
+       }
+    </script>
+</body>
+</html>
