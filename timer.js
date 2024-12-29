@@ -1,3 +1,4 @@
+//v. 0.1.0
 const { ipcRenderer } = require('electron');
 
 let timerElement;

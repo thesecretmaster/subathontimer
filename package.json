@@ -1,6 +1,6 @@
 {
   "name": "subathon",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "cross streaming platform subathon timer",
   "main": "index.js",
   "scripts": {
