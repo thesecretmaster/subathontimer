@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theme Selector</title>
+    <link rel="stylesheet" href="global.css">
+    <link rel="stylesheet" href="styles/themeselector.css">
+</head>
+<body>
+    <h1>Select a Theme</h1>
+    <div class="theme-list-container">
+        <div id="themeList" class="theme-list"></div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const fs = require('fs');
+        const path = require('path');
+
+        const themesDirectory = path.join(__dirname, 'themes');
+        const themeListElement = document.getElementById('themeList');
+
+        function loadThemes() {
+            const themes = fs.readdirSync(themesDirectory, { withFileTypes: true })
+                .filter(dirent => dirent.isDirectory())
+                .map(dirent => dirent.name);
+
+            themes.forEach(themeName => {
+                const themeItem = document.createElement('div');
+                themeItem.className = 'theme-item';
+                themeItem.textContent = themeName;
+                themeItem.onclick = () => applyTheme(themeName);
+                themeListElement.appendChild(themeItem);
+            });
+        }
+
+        function applyTheme(themeName) {
+            const themeItems = document.querySelectorAll('.theme-item');
+            themeItems.forEach(item => item.classList.remove('active'));
+
+            const selectedThemeItem = [...themeItems].find(item => item.textContent === themeName);
+            if (selectedThemeItem) selectedThemeItem.classList.add('active');
+
+            const themeCssPath = path.join(themesDirectory, themeName, 'theme.css');
+            ipcRenderer.send('apply-theme', themeCssPath);
+        }
+
+        loadThemes();
+    </script>
+</body>
+</html>

@@ -24,21 +24,38 @@ function startStreamElementsListener(jwt, onEvent) {
     console.error('Unauthorized:', error.message);
   });
   socket.on('event', (data) => {
-
-    if (data.provider === 'twitch' && data.type === 'subscriber') {
+    console.log(data);
+    if(data.provider === 'twitch' && data.type === 'subscriber') {
       onEvent({
         type: 'twitch-sub',
         user: data.data.displayName || data.data.username,
-        amount: data.data.amount
+        amount: data.data.amount,
+        tier: data.data.tier
       });
     }
 
-    if (data.provider === 'youtube' && data.type === 'subscriber') {
+    if(data.provider === 'twitch' && data.type === 'cheer') {
+      onEvent({
+        type: 'twitch-cheer',
+        user: data.data.displayName || data.data.username,
+        amount: data.data.amount
+      })
+    }
+
+    if(data.provider === 'youtube' && data.type === 'sponsor') {
       onEvent({
         type: 'youtube-member',
         user: data.data.displayName || data.data.username,
         amount: data.data.amount
       });
+    }
+
+    if(data.provider === 'youtube' && data.type === 'superchat') {
+      onEvent({
+        type: 'youtube-superchat',
+        user: data.data.displayName || data.data.username,
+        amount: data.data.amount
+      })
     }
   });
 

@@ -5,6 +5,8 @@ let mainWindow;
 let configWindow;
 let subathonConfigWindow;
 let subathonControlsWindow;
+let themeWindow;
+let themeCreatorWindow;
 
 const config = JSON.parse(fs.readFileSync('apiConfig.json', 'utf8'));
 const settings = JSON.parse(fs.readFileSync('subSettings.json', 'utf8'));
@@ -15,10 +17,11 @@ const settings = JSON.parse(fs.readFileSync('subSettings.json', 'utf8'));
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 400,
-    height: 200,
+    height: 150,
     resizable: false,
     autoHideMenuBar: true,
     modal: true,
+    icon: __dirname + 'img/icon.ico',
     webPreferences: {
       nodeIntegration: true, 
       contextIsolation: false,
@@ -48,6 +51,18 @@ function createWindow() {
             createSubathonControlsWindow();
         },
       },
+      {
+        label: 'Theme Selector',
+        click: () => {
+            createThemeWindow();
+        },
+      },
+      {
+        label: 'Theme Creator',
+        click: () => {
+            createthemeCreatorWindow();
+        },
+      },
     ]);
     menu.popup({ window: mainWindow });
   });
@@ -69,6 +84,7 @@ function createSubathonControlsWindow() {
         parent: mainWindow,
         autoHideMenuBar: true,
         resizable: false,
+        icon: __dirname + 'img/icon.ico',
         modal: true,
         webPreferences: {
             nodeIntegration: false,
@@ -119,6 +135,7 @@ function createSubathonConfigWindow() {
         parent: mainWindow,
         resizable: false,
         autoHideMenuBar: true,
+        icon: __dirname + 'img/icon.ico',
         modal: true,
         webPreferences: {
             preload: path.join(__dirname, 'preloads/preload-subsettings.js'),
@@ -176,6 +193,7 @@ function createConfigWindow() {
     resizable: false,
     parent: mainWindow,
     modal: true,
+    icon: __dirname + 'img/icon.ico',
     webPreferences: {
       preload: path.join(__dirname, 'preloads/preload-apiconfig.js'),
       nodeIntegration: false,
@@ -214,6 +232,73 @@ ipcMain.handle('get-api-keys', async () => {
   return config;
 });
 
+///
+/// Theme Selector
+///
+
+function createThemeWindow() {
+  if (themeWindow) {
+    themeWindow.focus();
+    return;
+  }
+
+  themeWindow = new BrowserWindow({
+    width: 350,
+    height: 700,
+    autoHideMenuBar: true,
+    resizable: false,
+    parent: mainWindow,
+    modal: true,
+    icon: __dirname + 'img/icon.ico',
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  themeWindow.loadFile('themeselector.html');
+
+  themeWindow.on('closed', () => {
+    themeWindow = null;
+  });
+}
+
+ipcMain.on('apply-theme', (event, themeCssPath) => {
+  mainWindow.webContents.send('apply-theme', themeCssPath);
+});
+
+///
+/// Theme Creator
+///
+
+function createthemeCreatorWindow() {
+  if (themeCreatorWindow) {
+    themeCreatorWindow.focus();
+    return;
+  }
+
+  themeCreatorWindow = new BrowserWindow({
+    width: 350,
+    height: 700,
+    autoHideMenuBar: true,
+    resizable: false,
+    parent: mainWindow,
+    modal: true,
+    icon: __dirname + 'img/icon.ico',
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  themeCreatorWindow.loadFile('themecreator.html');
+
+  themeCreatorWindow.on('closed', () => {
+    themeCreatorWindow = null;
+  });
+}
+
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
@@ -237,16 +322,26 @@ const youtubeJWT = config.youtubeApiKey;
 // Start a listener for Twitch subscriptions
 const twitchSocket = startStreamElementsListener(twitchJWT, (event) => {
   if (event.type === 'twitch-sub') {
-    console.log('New Twitch subscriber:', event.user, 'Tier:', event.tier);
     switch(event.tier)
     {
-      case 1:
+      case "1000":
         mainWindow.webContents.send('add-time', settings.tier1Increment);
-      case 2:
+        break;
+      case "2000":
         mainWindow.webContents.send('add-time', settings.tier2Increment);
-      case 3:
+        break;
+      case "3000":
         mainWindow.webContents.send('add-time', settings.tier3Increment);
+        break;
+      default: //streamlabs is weird and sometimes a tier isnt applied to the event. apply tier 1 increment as other tiers are always defined.
+      console.log("default");
+        mainWindow.webContents.send('add-time', settings.tier1Increment);
+        break;
     }
+  }
+
+  if (event.type === 'twitch-cheer') {
+    mainWindow.webContents.send('add-time', settings.bitIncrement * (event.amount / 100));
   }
 });
 
@@ -254,6 +349,10 @@ const twitchSocket = startStreamElementsListener(twitchJWT, (event) => {
 const youtubeSocket = startStreamElementsListener(youtubeJWT, (event) => {
   if (event.type === 'youtube-member') {
     console.log('New YouTube member:', event.user);
-    mainWindow.webContents.send('add-time', settings.memberIncrement);
+    mainWindow.webContents.send('add-time', settings.memberIncrement * event.amount);
+  }
+
+  if (event.type === 'youtube-superchat') {
+    mainWindow.webContents.send('add-time', settings.superchatIncrement * event.amount);
   }
 });

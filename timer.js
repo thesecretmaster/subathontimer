@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 ipcRenderer.on('add-time', (event, secondsToAdd) => {
-    if(secondsToAdd > 0) //to not add multiplier on remove time
+    if(secondsToAdd > 0)
         adjustTimer(Number(secondsToAdd * multiplier));
     else
         adjustTimer(Number(secondsToAdd));
@@ -35,6 +35,12 @@ ipcRenderer.on('change-multi', (event, value) => {
     multiplier = value;
     console.log(multiplier);
 });
+
+ipcRenderer.on('apply-theme', (event, themeCssPath) => {
+    let style = document.getElementById("style").href = themeCssPath;
+    console.log("theme applied");
+});
+
 
 function setTimerTo(seconds) {
     remainingSeconds = seconds;

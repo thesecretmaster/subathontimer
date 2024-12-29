@@ -65,6 +65,7 @@ h1, h2 {
 .noBarMain
 {
     padding: 20px;
+    width: 100%;
 }
 
 .sidebar:hover ~ main {
@@ -88,6 +89,15 @@ h1, h2 {
 
 #apiForm {
     max-width: 400px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #282828;
+    border-radius: 8px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.creator-form {
+    max-width: 500px;
     margin: 20px auto;
     padding: 20px;
     background-color: #282828;

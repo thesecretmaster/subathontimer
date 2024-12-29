@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="global.css">
+    <title>Theme Creator</title>
+</head>
+<body>
+    <main class="noBarMain">
+    <h1>Theme Creator</h1>
+
+    <div class="creator-form">
+        <h2>Theme Settings</h2>
+        <label for="timerName">Theme Name</label>
+        <input type="text" id="timerName" placeholder="e.g., My Theme">
+        <h2>Timer Properties</h2>
+        <label for="timerFont">Font Family</label>
+        <input type="text" id="timerFont" placeholder="e.g., 'Ubuntu', sans-serif">
+
+        <label for="timerSize">Font Size (px)</label>
+        <input type="number" id="timerSize" placeholder="e.g., 70">
+
+        <label for="timerColor">Font Color</label>
+        <input type="color" id="timerColor">
+
+        <label for="timerAlign">Text Align</label>
+        <select id="timerAlign">
+            <option value="center">Center</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>
+        <h2>Background</h2>
+        <label for="bgColor">Background Color</label>
+        <input type="color" id="bgColor">
+
+        <label for="bgImage">Background Image/GIF URL</label>
+        <input type="text" id="bgImage" placeholder="Enter URL">
+    <br>
+    <div class="form-section">
+        <button onclick="generateCSS()">Save & Preview</button>
+    </div>
+</div>
+
+    <div class="form-section">
+        <h2>Generated CSS</h2>
+        <textarea id="generatedCSS" rows="10" style="width: 100%; background-color: #121212; color: white;"></textarea>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+const fs = require('fs');
+const path = require('path');
+
+function generateCSS(event) {
+
+    const themeName = document.getElementById('timerName').value.trim();
+    if (!themeName) {
+        alert("Theme Name field cannot be empty.");
+        return;
+    }
+
+    const timerFont = document.getElementById('timerFont').value || "'Ubuntu', sans-serif";
+    const timerSize = document.getElementById('timerSize').value || 70;
+    const timerColor = document.getElementById('timerColor').value || '#a58fc4';
+    const timerAlign = document.getElementById('timerAlign').value || 'center';
+
+    const bgColor = document.getElementById('bgColor').value || '#121212';
+    const bgImage = document.getElementById('bgImage').value;
+
+    const css = `
+#subTimer {
+    font-family: ${timerFont};
+    font-size: ${timerSize}px;
+    color: ${timerColor};
+    text-align: ${timerAlign};
+    margin-bottom: 20px;
+}
+
+body {
+    font-family: ${timerFont};
+    background-color: ${bgColor};
+    ${bgImage ? `background-image: url(${bgImage});` : ''}
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+    margin: 0;
+    padding: 0;
+    display: flex;
+}
+
+#subTimerDiv {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 80%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}`;
+
+    document.getElementById('generatedCSS').value = css;
+
+    const themesDir = path.join(__dirname, 'themes');
+    const themeDir = path.join(themesDir, themeName);
+
+    if (!fs.existsSync(themesDir)) {
+        fs.mkdirSync(themesDir);
+    }
+
+    if (!fs.existsSync(themeDir)) {
+        fs.mkdirSync(themeDir);
+    }
+
+    const cssFilePath = path.join(themeDir, 'theme.css');
+    fs.writeFileSync(cssFilePath, css, 'utf8');
+
+    ipcRenderer.send('apply-theme', cssFilePath);
+}
+
+    </script>
+</main>
+</body>
+</html>
