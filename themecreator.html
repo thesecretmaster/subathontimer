@@ -36,6 +36,7 @@
 
         <label for="bgImage">Background Image/GIF URL</label>
         <input type="text" id="bgImage" placeholder="Enter URL">
+        <input type="file" id="bgLocal" accept="image/*">
     <br>
     <div class="form-section">
         <button onclick="generateCSS()">Save & Preview</button>
@@ -52,6 +53,36 @@
 const fs = require('fs');
 const path = require('path');
 
+const bgLocal = document.getElementById('bgLocal');
+let bgLocalFile;
+
+bgLocal.addEventListener('change', function(event) {
+    console.log(event.target.files[0]);
+    bgLocalFile = event.target.files[0];
+});
+
+function saveFile(file, ipath) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const fileBuffer = Buffer.from(event.target.result);
+
+        const filePath = path.join(ipath, 'bg.png');
+        fs.writeFile(filePath, fileBuffer, (err) => {
+            if (err) {
+                console.error('Error saving file:', err);
+            } else {
+                console.log(`File saved successfully to ${filePath}`);
+            }
+        });
+    };
+
+    reader.onerror = function(error) {
+        console.error('Error reading file:', error);
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
 function generateCSS(event) {
 
     const themeName = document.getElementById('timerName').value.trim();
@@ -66,7 +97,24 @@ function generateCSS(event) {
     const timerAlign = document.getElementById('timerAlign').value || 'center';
 
     const bgColor = document.getElementById('bgColor').value || '#121212';
-    const bgImage = document.getElementById('bgImage').value;
+    var bgImage = document.getElementById('bgImage').value;
+
+    const themesDir = path.join(__dirname, 'themes');
+    const themeDir = path.join(themesDir, themeName);
+
+    if (!fs.existsSync(themesDir)) {
+        fs.mkdirSync(themesDir);
+    }
+
+    if (!fs.existsSync(themeDir)) {
+        fs.mkdirSync(themeDir);
+    }
+
+    if(bgLocal.value)
+    {
+        saveFile(bgLocalFile, themeDir);
+        bgImage = path.join(themeDir, 'bg.png').replace(/\\/g, '/');;
+    }
 
     const css = `
 #subTimer {
@@ -101,16 +149,7 @@ body {
 
     document.getElementById('generatedCSS').value = css;
 
-    const themesDir = path.join(__dirname, 'themes');
-    const themeDir = path.join(themesDir, themeName);
-
-    if (!fs.existsSync(themesDir)) {
-        fs.mkdirSync(themesDir);
-    }
-
-    if (!fs.existsSync(themeDir)) {
-        fs.mkdirSync(themeDir);
-    }
+    
 
     const cssFilePath = path.join(themeDir, 'theme.css');
     fs.writeFileSync(cssFilePath, css, 'utf8');

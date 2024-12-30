@@ -1,4 +1,3 @@
-//v. 0.1.0
 const { ipcRenderer } = require('electron');
 
 let timerElement;
@@ -6,13 +5,15 @@ let remainingSeconds = 0;
 let multiplier = 1;
 let interval = null;
 let running = false;
+let adjustmentInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     timerElement = document.getElementById("subTimer");
 });
 
 ipcRenderer.on('add-time', (event, secondsToAdd) => {
-    if(secondsToAdd > 0)
+    secondsToAdd = Math.trunc(Number(secondsToAdd));
+    if (secondsToAdd > 0)
         adjustTimer(Number(secondsToAdd * multiplier));
     else
         adjustTimer(Number(secondsToAdd));
@@ -42,16 +43,27 @@ ipcRenderer.on('apply-theme', (event, themeCssPath) => {
     console.log("theme applied");
 });
 
-
 function setTimerTo(seconds) {
     remainingSeconds = seconds;
     timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
 }
 
 function adjustTimer(secondsToAdd) {
-    remainingSeconds += secondsToAdd;
-    if (remainingSeconds < 0) remainingSeconds = 0;
-    timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
+    const newRemainingSeconds = remainingSeconds + secondsToAdd;
+    if (adjustmentInterval) clearInterval(adjustmentInterval);
+
+    adjustmentInterval = setInterval(() => {
+        if (remainingSeconds < newRemainingSeconds) {
+            remainingSeconds++;
+            timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
+        } else {
+            clearInterval(adjustmentInterval);
+        }
+    }, 20); // Adjust this value for speed 
+
+    if (newRemainingSeconds < 0) {
+        remainingSeconds = 0;
+    }
 }
 
 function startTimer() {

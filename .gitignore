@@ -3,6 +3,7 @@ bower_components
 node_modules
 dist
 subathontimer-win32-x64
+subtimer-win32-x64
 
 #files
 *.tgz
