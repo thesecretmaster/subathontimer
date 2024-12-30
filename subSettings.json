@@ -3,7 +3,7 @@
   "tier1Increment": "10",
   "tier2Increment": "20",
   "tier3Increment": "30",
-  "bitIncrement": "40",
+  "bitIncrement": "36",
   "memberIncrement": "10",
   "superchatIncrement": "1"
 }

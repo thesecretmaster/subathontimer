@@ -113,7 +113,7 @@ function generateCSS(event) {
     if(bgLocal.value)
     {
         saveFile(bgLocalFile, themeDir);
-        bgImage = path.join(themeDir, 'bg.png').replace(/\\/g, '/');;
+        bgImage = '"' + path.join(themeDir, 'bg.png').replace(/\\/g, '/') + '"';
     }
 
     const css = `

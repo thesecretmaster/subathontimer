@@ -59,7 +59,7 @@ function adjustTimer(secondsToAdd) {
         } else {
             clearInterval(adjustmentInterval);
         }
-    }, 20); // Adjust this value for speed 
+    }, 1); // Adjust this value for speed 
 
     if (newRemainingSeconds < 0) {
         remainingSeconds = 0;
