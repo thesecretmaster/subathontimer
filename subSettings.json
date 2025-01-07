@@ -1,5 +1,7 @@
 {
   "startingTime": "20",
+  "randomHourChance": "1",
+  "oddsForMultiplier": ".2",
   "tier1Increment": "10",
   "tier2Increment": "20",
   "tier3Increment": "30",

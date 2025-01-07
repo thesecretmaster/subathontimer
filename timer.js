@@ -11,7 +11,33 @@ document.addEventListener('DOMContentLoaded', () => {
     timerElement = document.getElementById("subTimer");
 });
 
-ipcRenderer.on('add-time', (event, secondsToAdd) => {
+ipcRenderer.on('add-time', (event, secondsToAdd, subSettings) => {
+
+    var isFromControl = false;
+
+    if(subSettings === null)
+        isFromControl = true;
+    //random multi logic
+    var rand = Math.random();
+    var multi = multiplier;
+    if(!isFromControl)
+    {
+        //"shiny"
+        if(rand <= subSettings.oddsForMultiplier)
+        {
+            multi += subSettings.amountForMultiplier;
+        }
+    
+        //hour addition
+        rand = Math.random();
+        if(rand <= subSettings.randomHourChance)
+        {
+            secondsToAdd += 600;
+        }
+    }
+    
+
+    
     secondsToAdd = Math.trunc(Number(secondsToAdd));
     if (secondsToAdd > 0)
         adjustTimer(Number(secondsToAdd * multiplier));

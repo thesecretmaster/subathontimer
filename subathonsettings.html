@@ -26,6 +26,15 @@
       <div>
         <label for="startingTime">Starting Time (in seconds):</label>
         <input type="number" id="startingTime" name="startingTime" required>
+
+        <label for ="randomHourChance">Chance to Add Hour (0-1 e.g. 95% = .95)</label>
+        <input type="number" step=".01" id="randomHourChance" name="randomHourChance" required>
+
+        <label for = "oddsForMultiplier">Chance to Multiply (0-1 e.g. .95 = 95%)</label>
+        <input type="number" step=".01" id="oddsForMultiplier" name="oddsForMultiplier" required>
+
+        <label for = "amountForMultiplier">Chance to Multiply by X (e.g. 4 = 4x)</label>
+        <input type="number" id="amountForMultiplier" name="amountForMultiplier" required>
       </div>
 
       <h2 id="twitch">Twitch Increments</h2>
@@ -63,13 +72,15 @@
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
     // Retrieve saved keys
-    const { startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement } = await window.electronAPI.getSettings();
+    const { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement } = await window.electronAPI.getSettings();
     document.getElementById('startingTime').value = startingTime || '';
+    document.getElementById('randomHourChance').value = randomHourChance || '';
+    document.getElementById('oddsForMultiplier').value = oddsForMultiplier || '';
+    document.getElementById('amountForMultiplier').value = amountForMultiplier || '';
     document.getElementById('tier1Increment').value = tier1Increment || '';
     document.getElementById('tier2Increment').value = tier2Increment || '';
     document.getElementById('tier3Increment').value = tier3Increment || '';
     document.getElementById('bitIncrement').value = bitIncrement || '';
-
     document.getElementById('memberIncrement').value = memberIncrement || '';
     document.getElementById('superchatIncrement').value = superchatIncrement || '';
   });
@@ -78,6 +89,9 @@
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const startingTime = document.getElementById('startingTime').value;
+    const randomHourChance = document.getElementById('randomHourChance').value;
+    const oddsForMultiplier = document.getElementById('oddsForMultiplier').value;
+    const amountForMultiplier = document.getElementById('amountForMultiplier').value;
     const tier1Increment = document.getElementById('tier1Increment').value;
     const tier2Increment = document.getElementById('tier2Increment').value;
     const tier3Increment = document.getElementById('tier3Increment').value;
@@ -86,7 +100,7 @@
     const memberIncrement = document.getElementById('memberIncrement').value;
     const superchatIncrement = document.getElementById('superchatIncrement').value;
 
-    window.electronAPI.saveSettings({ startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
+    window.electronAPI.saveSettings({ startingTime, randomHourChance, oddsForMultiplier, oddsForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
   });
 </script>
 </html>

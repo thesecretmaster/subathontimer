@@ -112,11 +112,11 @@ ipcMain.on('start-multi', (event, value) => {
 });
 
 ipcMain.on('add-time', (event, amount) => {
-  mainWindow.webContents.send('add-time', amount);
+  mainWindow.webContents.send('add-time', amount, null);
 });
 
 ipcMain.on('remove-time', (event, amount) => {
-  mainWindow.webContents.send('add-time', amount);
+  mainWindow.webContents.send('add-time', amount, null);
 });
 
 ///
@@ -151,9 +151,9 @@ function createSubathonConfigWindow() {
 }
 
 // Take settings from settings window and save them
-ipcMain.on('save-sub-settings', (event, { startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }) => {
-  fs.writeFileSync('subSettings.json', JSON.stringify({ startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }, null, 2));
-  console.log('Received credentials:', { startingTime, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
+ipcMain.on('save-sub-settings', (event, { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }) => {
+  fs.writeFileSync('subSettings.json', JSON.stringify({ startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }, null, 2));
+  console.log('Received credentials:', { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
   console.log(startingTime);
   mainWindow.webContents.send('set-start-time', startingTime);
   if (configWindow) {
@@ -163,7 +163,7 @@ ipcMain.on('save-sub-settings', (event, { startingTime, tier1Increment, tier2Inc
 
 // Get and Restore settings
 ipcMain.handle('get-sub-settings', async () => {
-  let config = { startingTime: '', tier1Increment: '', tier2Increment: '', tier3Increment: '', bitIncrement: '', memberIncrement: '', superchatIncrement: '' };
+  let config = { startingTime: '', randomHourChance: '', oddsForMultiplier: '', amountForMultiplier: '', tier1Increment: '', tier2Increment: '', tier3Increment: '', bitIncrement: '', memberIncrement: '', superchatIncrement: '' };
   try {
     if (fs.existsSync('subSettings.json')) {
       const data = fs.readFileSync('subSettings.json', 'utf-8');
@@ -325,23 +325,23 @@ const twitchSocket = startStreamElementsListener(twitchJWT, (event) => {
     switch(event.tier)
     {
       case "1000":
-        mainWindow.webContents.send('add-time', settings.tier1Increment);
+        mainWindow.webContents.send('add-time', settings.tier1Increment, settings);
         break;
       case "2000":
-        mainWindow.webContents.send('add-time', settings.tier2Increment);
+        mainWindow.webContents.send('add-time', settings.tier2Increment, settings);
         break;
       case "3000":
-        mainWindow.webContents.send('add-time', settings.tier3Increment);
+        mainWindow.webContents.send('add-time', settings.tier3Increment, settings);
         break;
       default: //streamlabs is weird and sometimes a tier isnt applied to the event. apply tier 1 increment as other tiers are always defined.
       console.log("default");
-        mainWindow.webContents.send('add-time', settings.tier1Increment);
+        mainWindow.webContents.send('add-time', settings.tier1Increment, settings);
         break;
     }
   }
 
   if (event.type === 'twitch-cheer') {
-    mainWindow.webContents.send('add-time', settings.bitIncrement * (event.amount / 100));
+    mainWindow.webContents.send('add-time', settings.bitIncrement * (event.amount / 100), settings);
   }
 });
 
@@ -349,10 +349,10 @@ const twitchSocket = startStreamElementsListener(twitchJWT, (event) => {
 const youtubeSocket = startStreamElementsListener(youtubeJWT, (event) => {
   if (event.type === 'youtube-member') {
     console.log('New YouTube member:', event.user);
-    mainWindow.webContents.send('add-time', settings.memberIncrement * event.amount);
+    mainWindow.webContents.send('add-time', settings.memberIncrement * event.amount, settings);
   }
 
   if (event.type === 'youtube-superchat') {
-    mainWindow.webContents.send('add-time', settings.superchatIncrement * event.amount);
+    mainWindow.webContents.send('add-time', settings.superchatIncrement * event.amount, settings);
   }
 });
