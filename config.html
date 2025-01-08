@@ -10,25 +10,30 @@
   <h2>StreamElements API Keys</h2>
   <form id="apiForm">
     <div>
-      <label>Twitch Channel JWT:</label>
-      <input type="password" id="twitchClientId" required>
+      <label>Twitch Name:</label>
+      <input type="text" id="twitchClientId" required>
     </div>
     <div>
-      <label>YouTube Channel JWT:</label>
+      <label>Client ID:</label>
+      <input type="password" id="clientId" required>
+    </div>
+    <div>
+      <label>Access Token:</label>
       <input type="password" id="youtubeApiKey" required>
     </div>
     <br>
     <button type="submit">Save</button>
   </form>
-  <button class="subButton" onclick="findTokens()">Find JWT Tokens</button>
+  <button class="subButton" onclick="findTokens()">Find Twitch Tokens</button>
   <br>
-  <label>Subathon Timer 0.2.1 © JakeZSR Industries</label>
+  <label>Subathon Timer 1.0.0 © JakeZSR Industries</label>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       // Retrieve saved keys
       const { twitchClientId, youtubeApiKey } = await window.electronAPI.getKeys();
       document.getElementById('twitchClientId').value = twitchClientId || '';
       document.getElementById('youtubeApiKey').value = youtubeApiKey || '';
+      document.getElementById('clientId').value = clientId || '';
     });
 
     const form = document.getElementById('apiForm');
@@ -36,12 +41,13 @@
       e.preventDefault();
       const twitchClientId = document.getElementById('twitchClientId').value;
       const youtubeApiKey = document.getElementById('youtubeApiKey').value;
+      const clientId = docuemnt.getElementById('clientId').value;
 
-      window.electronAPI.saveKeys({ twitchClientId, youtubeApiKey });
+      window.electronAPI.saveKeys({ twitchClientId, youtubeApiKey, clientId });
     });
 
     function findTokens() {
-        window.open("https://dev.streamelements.com/docs/api-docs/ae133ffaf8c1a-personal-access-using-jwt-secert-token-to-access-the-api");
+        window.open("https://twitchtokengenerator.com");
     }
   </script>
   </main>

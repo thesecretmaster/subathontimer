@@ -209,9 +209,9 @@ function createConfigWindow() {
 }
 
 // Take keys from API key window and save them
-ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey }) => {
-  fs.writeFileSync('apiConfig.json', JSON.stringify({ twitchClientId, youtubeApiKey }, null, 2));
-  console.log('Received credentials:', { twitchClientId, youtubeApiKey });
+ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey, clientId }) => {
+  fs.writeFileSync('apiConfig.json', JSON.stringify({ twitchClientId, youtubeApiKey, clientId }, null, 2));
+  console.log('Received credentials:', { twitchClientId, youtubeApiKey, clientId });
 
   if (configWindow) {
     configWindow.close();
@@ -220,7 +220,7 @@ ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey }) => {
 
 // Get and Restore API Keys
 ipcMain.handle('get-api-keys', async () => {
-  let config = { twitchClientId: '', youtubeApiKey: '' };
+  let config = { twitchClientId: '', youtubeApiKey: '', clientId: '' };
   try {
     if (fs.existsSync('apiConfig.json')) {
       const data = fs.readFileSync('apiConfig.json', 'utf-8');
@@ -313,7 +313,29 @@ app.on('activate', () => {
   }
 });
 
+const { getOAuthToken } = require('./twitch');
+const { startTwitchListener } = require('./twitchListener');
+const oauthToken = config.youtubeApiKey;
+const broadcasterUsername = config.twitchClientId;
+const clientid = config.clientId;
 
+(async () => {
+  // Fetch broadcaster ID
+  const userResponse = await fetch(`https://api.twitch.tv/helix/users?login=${broadcasterUsername}`, {
+      method: 'GET',
+      headers: {
+          'Client-ID': clientid,
+          'Authorization': `Bearer ${oauthToken}`
+      }
+  });
+  const userData = await userResponse.json();
+  const broadcasterId = userData.data[0].id;
+
+  // Start the Twitch listener
+  startTwitchListener(clientid, oauthToken, broadcasterId, settings, mainWindow);
+})();
+
+/*
 //STREAMELEMENTS
 const { startStreamElementsListener } = require('./streamelements');
 const twitchJWT = config.twitchClientId;   
@@ -356,3 +378,4 @@ const youtubeSocket = startStreamElementsListener(youtubeJWT, (event) => {
     mainWindow.webContents.send('add-time', settings.superchatIncrement * event.amount, settings);
   }
 });
+*/
