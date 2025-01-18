@@ -1,15 +1,63 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 let mainWindow;
 let configWindow;
 let subathonConfigWindow;
 let subathonControlsWindow;
 let themeWindow;
 let themeCreatorWindow;
+let twitchConnection = null;
 
 const config = JSON.parse(fs.readFileSync('apiConfig.json', 'utf8'));
 const settings = JSON.parse(fs.readFileSync('subSettings.json', 'utf8'));
+
+//debug
+
+// Path to the log file
+const logFile = path.join(__dirname, 'log.txt');
+
+// Create a write stream for the log file
+const logStream = fs.createWriteStream(logFile, { flags: 'a' }); // 'a' means append to the file
+
+// Override console.log
+const originalLog = console.log;
+console.log = function (...args) {
+    // Write to log.txt
+    logStream.write(`[LOG] ${new Date().toISOString()} - ${args.join(' ')}\n`);
+    // Call the original console.log
+    originalLog.apply(console, args);
+};
+
+// Override console.error
+const originalError = console.error;
+console.error = function (...args) {
+    // Write to log.txt
+    logStream.write(`[ERROR] ${new Date().toISOString()} - ${args.join(' ')}\n`);
+    // Call the original console.error
+    originalError.apply(console, args);
+};
+
+// Override other console methods as needed
+const originalWarn = console.warn;
+console.warn = function (...args) {
+    logStream.write(`[WARN] ${new Date().toISOString()} - ${args.join(' ')}\n`);
+    originalWarn.apply(console, args);
+};
+
+const originalInfo = console.info;
+console.info = function (...args) {
+    logStream.write(`[INFO] ${new Date().toISOString()} - ${args.join(' ')}\n`);
+    originalInfo.apply(console, args);
+};
+
+// Ensure the log file is properly closed on exit
+process.on('exit', () => logStream.end());
+process.on('SIGINT', () => {
+    logStream.end();
+    process.exit();
+});
 
 ///
 /// Main Window
@@ -20,6 +68,7 @@ function createWindow() {
     height: 150,
     resizable: false,
     autoHideMenuBar: true,
+    alwaysOnTop: true,
     modal: true,
     icon: __dirname + 'img/icon.ico',
     webPreferences: {
@@ -108,6 +157,7 @@ ipcMain.handle('pause-timer', async () => {
 });
 
 ipcMain.on('start-multi', (event, value) => {
+  console.log("multi started");
     mainWindow.webContents.send('change-multi', value);
 });
 
@@ -209,9 +259,15 @@ function createConfigWindow() {
 }
 
 // Take keys from API key window and save them
-ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey, clientId }) => {
-  fs.writeFileSync('apiConfig.json', JSON.stringify({ twitchClientId, youtubeApiKey, clientId }, null, 2));
-  console.log('Received credentials:', { twitchClientId, youtubeApiKey, clientId });
+ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey, clientId, refreshKey }) => {
+  fs.writeFileSync('apiConfig.json', JSON.stringify({ twitchClientId, youtubeApiKey, clientId, refreshKey }, null, 2));
+  console.log('Received credentials:', { twitchClientId, youtubeApiKey, clientId, refreshKey });
+  let config = { twitchClientId, youtubeApiKey, clientId, refreshKey }
+  if(twitchClientId !== '' && youtubeApiKey !== '' && clientId !== '')
+    {
+      disconnectTwitchWS();
+      twitchConnection = attemptTwitchConnect(config);
+    }
 
   if (configWindow) {
     configWindow.close();
@@ -220,17 +276,41 @@ ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey, clientId }) => 
 
 // Get and Restore API Keys
 ipcMain.handle('get-api-keys', async () => {
-  let config = { twitchClientId: '', youtubeApiKey: '', clientId: '' };
+  let config = { twitchClientId: '', youtubeApiKey: '', clientId: '', refreshKey: '' };
   try {
     if (fs.existsSync('apiConfig.json')) {
       const data = fs.readFileSync('apiConfig.json', 'utf-8');
       config = JSON.parse(data);
+      if(config.twitchClientId !== '' && config.youtubeApiKey !== '' && config.clientId !== '')
+      {
+        disconnectTwitchWS();
+        twitchConnection = attemptTwitchConnect(config);
+      }
+      return config;
     }
   } catch (err) {
     console.error('Error reading apiConfig.json:', err);
+    return null;
   }
-  return config;
 });
+
+
+// Refresh API keys
+ipcMain.handle('regenerate-tokens', async () => {
+  console.log('Refreshing token with key:', config.refreshKey); // Debug
+  if (!config.refreshKey) {
+    throw new Error('Refresh key is missing. Check apiConfig.json.');
+  }
+  try {
+    const response = await axios.get(`https://twitchtokengenerator.com/api/refresh/${config.refreshKey}`);
+    console.log('Token refresh response:', response.data); // Debug response
+    return response.data;
+  } catch (error) {
+    console.error('Error refreshing token:', error.response ? error.response.data : error.message);
+    throw new Error(error.response ? error.response.data : error.message);
+  }
+});
+
 
 ///
 /// Theme Selector
@@ -312,28 +392,50 @@ app.on('activate', () => {
     createWindow();
   }
 });
+function attemptTwitchConnect(c)
+{
+    const { getOAuthToken } = require('./twitch');
+    const { startTwitchListener } = require('./twitchListener');
+    const oauthToken = c.youtubeApiKey;
+    const broadcasterUsername = c.twitchClientId;
+    const clientid = c.clientId;
+    const refreshKey = c.refreshKey;
 
-const { getOAuthToken } = require('./twitch');
-const { startTwitchListener } = require('./twitchListener');
-const oauthToken = config.youtubeApiKey;
-const broadcasterUsername = config.twitchClientId;
-const clientid = config.clientId;
 
-(async () => {
-  // Fetch broadcaster ID
-  const userResponse = await fetch(`https://api.twitch.tv/helix/users?login=${broadcasterUsername}`, {
-      method: 'GET',
-      headers: {
-          'Client-ID': clientid,
-          'Authorization': `Bearer ${oauthToken}`
-      }
-  });
-  const userData = await userResponse.json();
-  const broadcasterId = userData.data[0].id;
+    console.log("Attempting connect to Twitch API");
 
-  // Start the Twitch listener
-  startTwitchListener(clientid, oauthToken, broadcasterId, settings, mainWindow);
-})();
+    (async () => {
+      // Fetch broadcaster ID
+      const userResponse = await fetch(`https://api.twitch.tv/helix/users?login=${broadcasterUsername}`, {
+          method: 'GET',
+          headers: {
+              'Client-ID': clientid,
+              'Authorization': `Bearer ${oauthToken}`
+          }
+      });
+      const userData = await userResponse.json();
+      console.log(userData);
+      const broadcasterId = userData.data[0].id;
+
+      // Start the Twitch listener
+      startTwitchListener(clientid, oauthToken, broadcasterId, settings, mainWindow);
+    })();
+}
+
+function disconnectTwitchWS()
+{
+  console.log("Attempting to disconnect from Twitch WS.");
+  const { disconnectTwitchListener } = require('./twitchListener');
+  if(twitchConnection !== null)
+    var result = disconnectTwitchListener();
+
+  console.log(result);
+}
+
+if(config.twitchClientId !== '' && config.youtubeApiKey !== '' && config.clientId !== '')
+  {
+    twitchConnection = attemptTwitchConnect(config);
+  }
 
 /*
 //STREAMELEMENTS

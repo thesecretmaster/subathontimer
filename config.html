@@ -21,19 +21,25 @@
       <label>Access Token:</label>
       <input type="password" id="youtubeApiKey" required>
     </div>
+    <div>
+      <label>Refresh Token:</label>
+      <input type="password" id="refreshKey" required>
+    </div>
     <br>
     <button type="submit">Save</button>
   </form>
+  <button class="subButton" onclick="refreshTokens()">Refresh Tokens</button>
   <button class="subButton" onclick="findTokens()">Find Twitch Tokens</button>
   <br>
-  <label>Subathon Timer 1.0.0 © JakeZSR Industries</label>
+  <label>Subathon Timer 1.1.0 © JakeZSR Industries</label>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       // Retrieve saved keys
-      const { twitchClientId, youtubeApiKey } = await window.electronAPI.getKeys();
+      const { twitchClientId, youtubeApiKey, clientId, refreshKey } = await window.electronAPI.getKeys();
       document.getElementById('twitchClientId').value = twitchClientId || '';
       document.getElementById('youtubeApiKey').value = youtubeApiKey || '';
       document.getElementById('clientId').value = clientId || '';
+      document.getElementById('refreshKey').value = refreshKey || '';
     });
 
     const form = document.getElementById('apiForm');
@@ -41,13 +47,19 @@
       e.preventDefault();
       const twitchClientId = document.getElementById('twitchClientId').value;
       const youtubeApiKey = document.getElementById('youtubeApiKey').value;
-      const clientId = docuemnt.getElementById('clientId').value;
+      const clientId = document.getElementById('clientId').value;
+      const refreshKey = document.getElementById('refreshKey').value;
 
-      window.electronAPI.saveKeys({ twitchClientId, youtubeApiKey, clientId });
+      window.electronAPI.saveKeys({ twitchClientId, youtubeApiKey, clientId, refreshKey });
     });
 
     function findTokens() {
         window.open("https://twitchtokengenerator.com");
+    }
+
+    function refreshTokens()
+    {
+      window.electronAPI.refreshTokens();
     }
   </script>
   </main>

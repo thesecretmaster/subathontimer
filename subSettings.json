@@ -1,12 +1,12 @@
 {
-  "startingTime": "20",
-  "randomHourChance": ".1",
-  "oddsForMultiplier": ".02",
+  "startingTime": "10",
+  "randomHourChance": ".01",
+  "oddsForMultiplier": ".1",
   "amountForMultiplier": "4",
-  "tier1Increment": "10",
-  "tier2Increment": "20",
-  "tier3Increment": "30",
-  "bitIncrement": "100",
+  "tier1Increment": "12",
+  "tier2Increment": "360",
+  "tier3Increment": "900",
+  "bitIncrement": "30",
   "memberIncrement": "10",
   "superchatIncrement": "1"
 }

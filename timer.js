@@ -2,12 +2,12 @@ const { ipcRenderer } = require('electron');
 
 let timerElement;
 let remainingSeconds = 0;
-let multiplier = 1;
+var multiplier = 0;
 let interval = null;
 let running = false;
 let adjustmentInterval = null;
-let displayTimeout = null; // For managing the display timing
-let displayQueue = []; 
+let displayQueue = []; // Queue for handling each `add-time` event individually
+let processingAddition = false; // To track if an addition is being processed
 
 document.addEventListener('DOMContentLoaded', () => {
     timerElement = document.getElementById("subTimer");
@@ -17,37 +17,37 @@ document.addEventListener('DOMContentLoaded', () => {
 ipcRenderer.on('add-time', (event, secondsToAdd, subSettings, isSub) => {
     var isFromControl = false;
 
-    if (subSettings === null)
-        isFromControl = true;
-
-    // Random multiplier logic
+    if (subSettings === null) isFromControl = true;
     var rand = Math.random();
     var multi = multiplier;
-    let color = "#90EE90";
+    let displayColor = "#90EE90";
+    let timerColor = "";
 
     if (!isFromControl && isSub) {
-        // "Shiny" logic
         if (rand <= subSettings.oddsForMultiplier) {
-            multi += subSettings.amountForMultiplier;
-            color = "yellow"; 
+            multi += Number(subSettings.amountForMultiplier);
+            displayColor = "yellow";
+            timerColor = "yellow";
         }
 
         // Hour addition
         rand = Math.random();
         if (rand <= subSettings.randomHourChance) {
             secondsToAdd = 3600;
-            color = "rainbow";
+            displayColor = "rainbow";
+            timerColor = "rainbow";
         }
     }
 
-    secondsToAdd = Math.trunc(Number(secondsToAdd));
-    if (secondsToAdd > 0) {
-        if(secondsToAdd > 10)
-            displayTimeAdded(secondsToAdd * multiplier, color);
+    if(multi === 0)
+    {
+        multi = 1;
+    }
 
-        adjustTimer(Number(secondsToAdd * multiplier));
-    } else {
-        adjustTimer(Number(secondsToAdd));
+    secondsToAdd = Math.trunc(Number(secondsToAdd * multi));
+    if (secondsToAdd > 0) {
+        displayQueue.push({ secondsToAdd, displayColor, timerColor });
+        processAddTimeQueue();
     }
 });
 
@@ -67,7 +67,7 @@ ipcRenderer.on('pause-timer', (event) => {
 
 ipcRenderer.on('change-multi', (event, value) => {
     multiplier = value;
-    console.log(multiplier);
+    console.log(multiplier + "in timer");
 });
 
 ipcRenderer.on('apply-theme', (event, themeCssPath) => {
@@ -80,9 +80,23 @@ function setTimerTo(seconds) {
     timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
 }
 
-function adjustTimer(secondsToAdd) {
+function processAddTimeQueue() {
+    if (processingAddition || displayQueue.length === 0) return;
+
+    const { secondsToAdd, displayColor, timerColor } = displayQueue.shift();
+    processingAddition = true;
+
+    const displayElement = document.getElementById("timeAdditionDisplay");
     const newRemainingSeconds = remainingSeconds + secondsToAdd;
-    if (adjustmentInterval) clearInterval(adjustmentInterval);
+
+    const formattedTime = formatTime(secondsToAdd);
+    displayElement.innerText = `+${formattedTime}`;
+    applyColorEffects(displayElement, displayColor);
+
+    applyTimerColor(timerColor);
+
+    displayElement.style.display = "block";
+    displayElement.style.opacity = "1";
 
     adjustmentInterval = setInterval(() => {
         if (remainingSeconds < newRemainingSeconds) {
@@ -90,12 +104,18 @@ function adjustTimer(secondsToAdd) {
             timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
         } else {
             clearInterval(adjustmentInterval);
-        }
-    }, 1); // Adjust this value for speed 
+            adjustmentInterval = null;
 
-    if (newRemainingSeconds < 0) {
-        remainingSeconds = 0;
-    }
+            resetTimerColor();
+
+            displayElement.style.opacity = "0";
+            setTimeout(() => {
+                displayElement.style.display = "none";
+                processingAddition = false;
+                processAddTimeQueue();
+            }, 500);
+        }
+    }, 1);
 }
 
 function startTimer() {
@@ -142,12 +162,41 @@ function createAdditionDisplayElement() {
     document.body.appendChild(displayElement);
 }
 
-function displayTimeAdded(seconds, color) {
-    displayQueue.push({ seconds, color });
-
-    if (!displayTimeout) {
-        processDisplayQueue();
+function applyColorEffects(element, color) {
+    if (color === "rainbow") {
+        element.style.color = "transparent";
+        element.style.backgroundImage =
+            "linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet)";
+        element.style.webkitBackgroundClip = "text";
+        element.style.backgroundClip = "text";
+    } else {
+        element.style.color = color;
+        element.style.backgroundImage = "none";
+        element.style.webkitBackgroundClip = "none";
+        element.style.backgroundClip = "none";
     }
+}
+
+function applyTimerColor(color) {
+    if (color === "rainbow") {
+        timerElement.style.color = "transparent";
+        timerElement.style.backgroundImage =
+            "linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet)";
+        timerElement.style.webkitBackgroundClip = "text";
+        timerElement.style.backgroundClip = "text";
+    } else if (color) {
+        timerElement.style.color = color;
+        timerElement.style.backgroundImage = "none";
+        timerElement.style.webkitBackgroundClip = "none";
+        timerElement.style.backgroundClip = "none";
+    }
+}
+
+function resetTimerColor() {
+    timerElement.style.color = "";
+    timerElement.style.backgroundImage = "none";
+    timerElement.style.webkitBackgroundClip = "none";
+    timerElement.style.backgroundClip = "none";
 }
 
 function formatTime(seconds) {
@@ -160,39 +209,4 @@ function formatTime(seconds) {
     } else {
         return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
     }
-}
-
-
-function processDisplayQueue() {
-    if (displayQueue.length === 0) {
-        displayTimeout = null;
-        return;
-    }
-
-    const { seconds, color } = displayQueue.shift();
-    const displayElement = document.getElementById("timeAdditionDisplay");
-
-    const formattedTime = formatTime(seconds);
-
-    displayElement.innerText = `+${formattedTime}`;
-    displayElement.style.color = color === "rainbow" ? "transparent" : color;
-    displayElement.style.backgroundImage =
-        color === "rainbow"
-            ? "linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet)"
-            : "none";
-    displayElement.style.webkitBackgroundClip =
-        color === "rainbow" ? "text" : "none";
-    displayElement.style.backgroundClip = color === "rainbow" ? "text" : "none";
-
-    displayElement.style.display = "block";
-    displayElement.style.opacity = "1";
-
-    displayTimeout = setTimeout(() => {
-        displayElement.style.opacity = "0";
-
-        setTimeout(() => {
-            displayElement.style.display = "none";
-            processDisplayQueue();
-        }, 500);
-    }, 2000);
 }

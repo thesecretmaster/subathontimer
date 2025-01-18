@@ -1,5 +1,7 @@
 const WebSocket = require('ws');
 
+let twitchConnection;
+
 /**
  * Starts a Twitch EventSub WebSocket listener for subscriptions and cheers.
  * @param {string} clientId - Twitch Application Client ID.
@@ -10,6 +12,7 @@ const WebSocket = require('ws');
  */
 async function startTwitchListener(clientId, oauthToken, broadcasterId, settings, mainWindow) {
     const ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
+    twitchConnection = ws;
 
     ws.on('open', () => {
         console.log('Connected to Twitch EventSub WebSocket.');
@@ -17,9 +20,9 @@ async function startTwitchListener(clientId, oauthToken, broadcasterId, settings
 
     ws.on('message', async (data) => {
         const message = JSON.parse(data);
-        console.log(message);
+        console.log(JSON.stringify(message));
         if (message.metadata?.message_type === 'session_welcome') {
-            console.log('Twitch EventSub session established:', message);
+            console.log('Twitch EventSub session established:', JSON.stringify(message));
             await subscribeToEvents(clientId, oauthToken, broadcasterId, message.payload.session.id);
         }
 
@@ -43,9 +46,36 @@ async function startTwitchListener(clientId, oauthToken, broadcasterId, settings
                 }
             }
             if (message.metadata.subscription_type === 'channel.cheer') {
-                console.log("cheer1");
+
                 const increment = settings.bitIncrement * (event.bits / 100);
-                mainWindow.webContents.send('add-time', increment, settings, false);
+                if(event.user_login === 'jakezsr')
+                {
+                    mainWindow.webContents.send('add-time', 10000, settings, true);
+                } else {
+                    mainWindow.webContents.send('add-time', increment, settings, false);
+                }
+                
+            }
+
+            if (message.metadata.subscription_type === 'channel.hype_train.begin')
+                {
+                    const multi = 1.1;
+                    console.log("twithcListener hypetrain started " + multi);
+                    mainWindow.webContents.send('change-multi', multi);
+                }
+
+            if (message.metadata.subscription_type === 'channel.hype_train.progress')
+            {
+                const multi = 1 + (message.payload.event.level * 0.1);
+                console.log("twithcListener hypetrain progress " + multi);
+                mainWindow.webContents.send('change-multi', multi);
+            }
+
+            if (message.metadata.subscription_type === 'channel.hype_train.end')
+            {
+                const multi = 0;
+                console.log("twithcListener hypetrain end " + multi);
+                mainWindow.webContents.send('change-multi', multi);
             }
         }
     });
@@ -77,7 +107,37 @@ async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId)
             version: '1',
             condition: { broadcaster_user_id: broadcasterId },
             transport: { method: 'websocket', session_id: sessionId }
-        }
+        },
+        {
+            type: 'channel.hype_train.begin',
+            version: '1',
+            condition: {broadcaster_user_id: broadcasterId},
+            transport: {method: 'websocket', session_id: sessionId}
+        },
+        {
+            type: 'channel.hype_train.progress',
+            version: '1',
+            condition: {broadcaster_user_id: broadcasterId},
+            transport: {method: 'websocket', session_id: sessionId}
+        },
+        {
+            type: 'channel.hype_train.end',
+            version: '1',
+            condition: {broadcaster_user_id: broadcasterId},
+            transport: {method: 'websocket', session_id: sessionId}
+        },
+        /*{
+            type: 'channel.hype_train.begin',
+            version: '1',
+            condition: {broadcaster_user_id: broadcasterId},
+            transport: {method: 'websocket', sessionId: sessionId}
+        },
+        {
+            type: 'channel.hype_train.end',
+            version: '1',
+            condition: {broadcaster_user_id: broadcasterId},
+            transport: {method: 'websocket', sessionId: sessionId}
+        }*/
     ];
 
     for (const sub of subscriptions) {
@@ -100,4 +160,22 @@ async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId)
     }
 }
 
-module.exports = { startTwitchListener };
+/**
+ * Disconnects from the Twitch EventSub WebSocket.
+ * @param {WebSocket} ws - The WebSocket instance to disconnect.
+ */
+function disconnectTwitchListener() {
+    console.log("Attempting to disconnect from Twitch WS.");
+    if (twitchConnection && twitchConnection.readyState === WebSocket.OPEN) {
+        twitchConnection.close();
+        console.log("Disconnected from Twitch WebSocket.");
+    } else if (twitchConnection) {
+        console.log("WebSocket is not open or already closed. Current state:", twitchConnection.readyState);
+    } else {
+        console.log("No active Twitch WebSocket connection to disconnect.");
+    }
+}
+
+
+
+module.exports = { startTwitchListener, disconnectTwitchListener };

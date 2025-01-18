@@ -1,5 +1,6 @@
 {
   "twitchClientId": "",
   "youtubeApiKey": "",
-  "clientId": ""
+  "clientId": "",
+  "refreshKey": ""
 }
