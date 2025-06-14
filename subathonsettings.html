@@ -77,36 +77,17 @@
 </body>
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
-    // Retrieve saved keys
-    const {startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement} = await window.electronAPI.getSettings();
-    document.getElementById('startingTime').value = startingTime || '';
-    document.getElementById('randomHourChance').value = randomHourChance || '';
-    document.getElementById('oddsForMultiplier').value = oddsForMultiplier || '';
-    document.getElementById('amountForMultiplier').value = amountForMultiplier || '';
-    document.getElementById('tier1Increment').value = tier1Increment || '';
-    document.getElementById('tier2Increment').value = tier2Increment || '';
-    document.getElementById('tier3Increment').value = tier3Increment || '';
-    document.getElementById('bitIncrement').value = bitIncrement || '';
-    document.getElementById('memberIncrement').value = memberIncrement || '';
-    document.getElementById('superchatIncrement').value = superchatIncrement || '';
+    const settings = await window.electronAPI.getSettings();
+    for (const [k, v] of Object.entries(settings)) {
+      const e = document.getElementById(k)
+      if (e) e.value = v || ''
+    }
   });
 
   const form = document.getElementById('subathonForm');
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const startingTime = document.getElementById('startingTime').value;
-    const randomHourChance = document.getElementById('randomHourChance').value;
-    const oddsForMultiplier = document.getElementById('oddsForMultiplier').value;
-    const amountForMultiplier = document.getElementById('amountForMultiplier').value;
-    const tier1Increment = document.getElementById('tier1Increment').value;
-    const tier2Increment = document.getElementById('tier2Increment').value;
-    const tier3Increment = document.getElementById('tier3Increment').value;
-    const bitIncrement = document.getElementById('bitIncrement').value;
-
-    const memberIncrement = document.getElementById('memberIncrement').value;
-    const superchatIncrement = document.getElementById('superchatIncrement').value;
-
-    window.electronAPI.saveSettings({startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement});
+    window.electronAPI.saveSettings(Object.fromEntries(new FormData(form).entries()));
   });
 </script>
 

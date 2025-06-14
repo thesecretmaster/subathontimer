@@ -7,10 +7,10 @@ window.electronAPI = {
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Retrieve saved keys
-  const { twitchUsername, twitchClientId, twitchClientSecret } = await window.electronAPI.getKeys();
-  document.getElementById('twitchUsername').value = twitchUsername || '';
-  document.getElementById('twitchClientId').value = twitchClientId || '';
-  document.getElementById('twitchClientSecret').value = twitchClientSecret || '';
+  const config = await window.electronAPI.getKeys();
+  document.getElementById('twitchUsername').value = config.twitchUsername || '';
+  document.getElementById('twitchClientId').value = config.twitchClientId || '';
+  document.getElementById('twitchClientSecret').value = config.twitchClientSecret || '';
 
   const form = document.getElementById('apiForm');
   form.addEventListener('submit', (e) => {
@@ -20,8 +20,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       twitchClientId: document.getElementById('twitchClientId').value,
       twitchClientSecret: document.getElementById('twitchClientSecret').value
     };
-    window.electronAPI.saveKeys(keys);
-
     ipcRenderer.send('save-api-config', keys);
   })
 });

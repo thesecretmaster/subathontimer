@@ -1,8 +1,8 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const axios = require('axios');
 const { apiRequest } = require('./twitch');
+const { readJsonFile } = require('./util');
 let mainWindow;
 let configWindow;
 let subathonConfigWindow;
@@ -11,7 +11,21 @@ let themeWindow;
 let themeCreatorWindow;
 let twitchConnection = null;
 
-const settings = JSON.parse(fs.readFileSync('subSettings.json', 'utf8'));
+const SUB_SETTINGS_DEFAULT = {
+  "startingTime": "100",
+  "randomHourChance": ".01",
+  "oddsForMultiplier": ".1",
+  "amountForMultiplier": "4",
+  "tier1Increment": "12",
+  "tier2Increment": "360",
+  "tier3Increment": "900",
+  "bitIncrement": "30"
+}
+
+const settings = {
+    ...SUB_SETTINGS_DEFAULT,
+    ...readJsonFile('subSettings.json', {})
+};
 
 const logFile = path.join(__dirname, 'log.txt');
 
@@ -69,6 +83,9 @@ function createWindow() {
     });
 
     mainWindow.loadFile('timer.html');
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.webContents.send('set-start-time', settings.startingTime);
+    })
 
     mainWindow.webContents.on('context-menu', (e, params) => {
         const menu = Menu.buildFromTemplate([
@@ -163,25 +180,27 @@ let oauthServerRunning = false
 const twitchRedirectUri = 'http://localhost:8008/oauth'
 
 ipcMain.on('save-api-config', (event, data) => {
+    fs.writeFileSync('apiConfig.json', JSON.stringify(data, null, 2));
     if (!oauthServerRunning) {
         const http = require('node:http');
 
         const server = http.createServer(async (req, res) => {
-        const params = new URLSearchParams(req.url.split('?', 2)[1])
-        const token_res = await fetch('https://id.twitch.tv/oauth2/token', {method: 'POST', headers: { "Content-Type": "application/x-www-form-urlencoded", }, body: new URLSearchParams({client_id: data.twitchClientId, client_secret: data.twitchClientSecret, code: params.get('code'), grant_type: 'authorization_code', redirect_uri: twitchRedirectUri})})
-        if (token_res.ok) {
-            fs.writeFileSync('apiToken.json', JSON.stringify(await token_res.json(), null, 2));
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('Token setup complete! You may now close this window');
-            server.close()
-            oauthServerRunning = false
-            disconnectTwitchWS();
-            twitchConnection = attemptTwitchConnect();
-        } else {
-            res.writeHead(token_res.status);
-            res.end(await token_res.bytes());
-        }
-      });
+            const params = new URLSearchParams(req.url.split('?', 2)[1])
+            const token_res = await fetch('https://id.twitch.tv/oauth2/token', {method: 'POST', headers: { "Content-Type": "application/x-www-form-urlencoded", }, body: new URLSearchParams({client_id: data.twitchClientId, client_secret: data.twitchClientSecret, code: params.get('code'), grant_type: 'authorization_code', redirect_uri: twitchRedirectUri})})
+            if (token_res.ok) {
+                fs.writeFileSync('apiToken.json', JSON.stringify(await token_res.json(), null, 2));
+                res.writeHead(200, { 'Content-Type': 'text/plain' });
+                res.end('Token setup complete! You may now close this window');
+                server.close()
+                oauthServerRunning = false
+                configWindow.close();
+                disconnectTwitchWS();
+                twitchConnection = attemptTwitchConnect();
+            } else {
+                res.writeHead(token_res.status);
+                res.end(await token_res.bytes());
+            }
+        });
 
       server.listen(8008);
       oauthServerRunning = true
@@ -234,17 +253,7 @@ ipcMain.on('save-sub-settings', (event, { startingTime, randomHourChance, oddsFo
 
 // Get and Restore settings
 ipcMain.handle('get-sub-settings', async () => {
-    let config = { startingTime: '', randomHourChance: '', oddsForMultiplier: '', amountForMultiplier: '', tier1Increment: '', tier2Increment: '', tier3Increment: '', bitIncrement: '', memberIncrement: '', superchatIncrement: '' };
-    try {
-        if (fs.existsSync('subSettings.json')) {
-            const data = fs.readFileSync('subSettings.json', 'utf-8');
-            config = JSON.parse(data);
-            mainWindow.webContents.send('set-start-time', settings.startingTime);
-        }
-    } catch (err) {
-        console.error('Error reading subSettings.json:', err);
-    }
-    return config;
+    return {...SUB_SETTINGS_DEFAULT, ...readJsonFile('subSettings.json', {})};
 });
 
 ///
@@ -279,38 +288,14 @@ function createConfigWindow() {
     });
 }
 
-// Take keys from API key window and save them
-ipcMain.on('save-keys', (event, { twitchUsername, twitchClientId, twitchClientSecret }) => {
-    let config = { twitchUsername, twitchClientId, twitchClientSecret }
-    fs.writeFileSync('apiConfig.json', JSON.stringify(config, null, 2));
-    console.log('Received credentials:', config);
-    if (twitchClientId !== '' && twitchUsername !== '' && twitchClientSecret !== '') {
+// Get and Restore API Keys
+ipcMain.handle('get-api-keys', async () => {
+    const config = readJsonFile('apiConfig.json', {});
+    if (config.twitchClientId && config.youtubeApiKey && config.clientId) {
         disconnectTwitchWS();
         twitchConnection = attemptTwitchConnect();
     }
-
-    if (configWindow) {
-        configWindow.close();
-    }
-});
-
-// Get and Restore API Keys
-ipcMain.handle('get-api-keys', async () => {
-    let config = { twitchClientId: '', youtubeApiKey: '', clientId: '', refreshKey: '' };
-    try {
-        if (fs.existsSync('apiConfig.json')) {
-            const data = fs.readFileSync('apiConfig.json', 'utf-8');
-            config = JSON.parse(data);
-            if (config.twitchClientId !== '' && config.youtubeApiKey !== '' && config.clientId !== '') {
-                disconnectTwitchWS();
-                twitchConnection = attemptTwitchConnect();
-            }
-            return config;
-        }
-    } catch (err) {
-        console.error('Error reading apiConfig.json:', err);
-        return null;
-    }
+    return config;
 });
 
 ///
@@ -395,7 +380,7 @@ app.on('activate', () => {
 });
 function attemptTwitchConnect() {
     const { startTwitchListener } = require('./twitchListener');
-    const { twitchUsername } = JSON.parse(fs.readFileSync('apiConfig.json', 'utf8'));
+    const { twitchUsername } = readJsonFile('apiConfig.json');
 
     console.log("Attempting connect to Twitch API");
 
