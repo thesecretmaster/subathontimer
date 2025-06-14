@@ -7,61 +7,26 @@
 </head>
 <body>
   <main class="noBarMain">
-  <h2>StreamElements API Keys</h2>
+  <h2>Twitch API Keys</h2>
+  <p>Note: You must go to https://dev.twitch.tv and create an application to obtain a Client ID and Client Secret. When you set this up, make sure to set "http://localhost:8008/oauth" as a Redirect URI</p>
   <form id="apiForm">
     <div>
       <label>Twitch Name:</label>
-      <input type="text" id="twitchClientId" required>
+      <input type="text" id="twitchUsername" required>
     </div>
     <div>
-      <label>Client ID:</label>
-      <input type="password" id="clientId" required>
+      <label>Twitch Client ID:</label>
+      <input type="password" id="twitchClientId" required>
     </div>
     <div>
-      <label>Access Token:</label>
-      <input type="password" id="youtubeApiKey" required>
-    </div>
-    <div>
-      <label>Refresh Token:</label>
-      <input type="password" id="refreshKey" required>
+      <label>Twitch Client Secret:</label>
+      <input type="password" id="twitchClientSecret" required>
     </div>
     <br>
     <button type="submit">Save</button>
   </form>
-  <button class="subButton" onclick="refreshTokens()">Refresh Tokens</button>
-  <button class="subButton" onclick="findTokens()">Find Twitch Tokens</button>
   <br>
   <label>Subathon Timer 1.1.0 © JakeZSR Industries</label>
-  <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      // Retrieve saved keys
-      const { twitchClientId, youtubeApiKey, clientId, refreshKey } = await window.electronAPI.getKeys();
-      document.getElementById('twitchClientId').value = twitchClientId || '';
-      document.getElementById('youtubeApiKey').value = youtubeApiKey || '';
-      document.getElementById('clientId').value = clientId || '';
-      document.getElementById('refreshKey').value = refreshKey || '';
-    });
-
-    const form = document.getElementById('apiForm');
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const twitchClientId = document.getElementById('twitchClientId').value;
-      const youtubeApiKey = document.getElementById('youtubeApiKey').value;
-      const clientId = document.getElementById('clientId').value;
-      const refreshKey = document.getElementById('refreshKey').value;
-
-      window.electronAPI.saveKeys({ twitchClientId, youtubeApiKey, clientId, refreshKey });
-    });
-
-    function findTokens() {
-        window.open("https://twitchtokengenerator.com");
-    }
-
-    function refreshTokens()
-    {
-      window.electronAPI.refreshTokens();
-    }
-  </script>
   </main>
 </body>
 </html>

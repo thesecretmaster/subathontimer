@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 //grabs auth from client info
 async function getOAuthToken(clientId, clientSecret) {
     const response = await fetch('https://id.twitch.tv/oauth2/token', {
@@ -14,4 +15,37 @@ async function getOAuthToken(clientId, clientSecret) {
     return data.access_token;
 }
 
-module.exports = { getOAuthToken };
+async function apiRequest(url, options) {
+    const tokenConfig = JSON.parse(fs.readFileSync('apiToken.json', 'utf8'));
+    const appConfig = JSON.parse(fs.readFileSync('apiConfig.json', 'utf8'));
+    options.headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+        'Client-ID': appConfig.twitchClientId,
+        'Authorization': `Bearer ${tokenConfig['access_token']}`
+    }
+    if (!options.method) options.method = 'POST'
+    const res = await fetch(url, options)
+    if (res.status === 401) {
+        const refresh_res = await fetch('https://id.twitch.tv/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({client_id: appConfig.twitchClientId, client_secret: appConfig.twitchClientSecret, grant_type: 'refresh_token', refresh_token: tokenConfig['refresh_token']})
+        });
+        if (refresh_res.ok) {
+            const refresh_json = await refresh_res.json();
+            fs.writeFileSync('apiToken.json', JSON.stringify(refresh_json, null, 2));
+            options.headers = {
+                ...options.headers,
+                'Authorization': `Bearer ${refresh_json['access_token']}`
+            }
+            return await fetch(url, options)
+        } else {
+            return res
+        }
+    } else {
+        return res
+    }
+}
+
+module.exports = { getOAuthToken, apiRequest };

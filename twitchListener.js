@@ -1,9 +1,10 @@
 const WebSocket = require('ws');
+const { apiRequest } = require('./twitch');
 
 let twitchConnection;
 
 
-async function startTwitchListener(clientId, oauthToken, broadcasterId, settings, mainWindow) {
+async function startTwitchListener(broadcasterId, settings, mainWindow) {
     const ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
     twitchConnection = ws;
 
@@ -16,7 +17,7 @@ async function startTwitchListener(clientId, oauthToken, broadcasterId, settings
         console.log(JSON.stringify(message));
         if (message.metadata?.message_type === 'session_welcome') {
             console.log('Twitch EventSub session established:', JSON.stringify(message));
-            await subscribeToEvents(clientId, oauthToken, broadcasterId, message.payload.session.id);
+            await subscribeToEvents(broadcasterId, message.payload.session.id);
         }
 
         if (message.metadata?.message_type === 'notification') {
@@ -77,7 +78,7 @@ async function startTwitchListener(clientId, oauthToken, broadcasterId, settings
 }
 
 
-async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId) {
+async function subscribeToEvents(broadcasterId, sessionId) {
     const subscriptions = [
         {
             type: 'channel.subscribe',
@@ -124,15 +125,7 @@ async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId)
     ];
 
     for (const sub of subscriptions) {
-        const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
-            method: 'POST',
-            headers: {
-                'Client-ID': clientId,
-                'Authorization': `Bearer ${oauthToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(sub)
-        });
+        const response = await apiRequest('https://api.twitch.tv/helix/eventsub/subscriptions', { body: JSON.stringify(sub) })
 
         if (response.ok) {
             console.log(`Successfully subscribed to ${sub.type}`);

@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const { apiRequest } = require('./twitch');
 let mainWindow;
 let configWindow;
 let subathonConfigWindow;
@@ -10,7 +11,6 @@ let themeWindow;
 let themeCreatorWindow;
 let twitchConnection = null;
 
-const config = JSON.parse(fs.readFileSync('apiConfig.json', 'utf8'));
 const settings = JSON.parse(fs.readFileSync('subSettings.json', 'utf8'));
 
 const logFile = path.join(__dirname, 'log.txt');
@@ -159,6 +159,37 @@ ipcMain.on('remove-time', (event, amount) => {
     mainWindow.webContents.send('add-time', amount, null);
 });
 
+let oauthServerRunning = false
+const twitchRedirectUri = 'http://localhost:8008/oauth'
+
+ipcMain.on('save-api-config', (event, data) => {
+    if (!oauthServerRunning) {
+        const http = require('node:http');
+
+        const server = http.createServer(async (req, res) => {
+        const params = new URLSearchParams(req.url.split('?', 2)[1])
+        const token_res = await fetch('https://id.twitch.tv/oauth2/token', {method: 'POST', headers: { "Content-Type": "application/x-www-form-urlencoded", }, body: new URLSearchParams({client_id: data.twitchClientId, client_secret: data.twitchClientSecret, code: params.get('code'), grant_type: 'authorization_code', redirect_uri: twitchRedirectUri})})
+        if (token_res.ok) {
+            fs.writeFileSync('apiToken.json', JSON.stringify(await token_res.json(), null, 2));
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('Token setup complete! You may now close this window');
+            server.close()
+            oauthServerRunning = false
+            disconnectTwitchWS();
+            twitchConnection = attemptTwitchConnect();
+        } else {
+            res.writeHead(token_res.status);
+            res.end(await token_res.bytes());
+        }
+      });
+
+      server.listen(8008);
+      oauthServerRunning = true
+    }
+
+    require('electron').shell.openExternal(`https://id.twitch.tv/oauth2/authorize?client_id=${data.twitchClientId}&redirect_uri=${twitchRedirectUri}&response_type=code&scope=bits:read channel:read:subscriptions channel:read:hype_train`);
+});
+
 ///
 /// Subathon Settings Window
 ///
@@ -249,13 +280,13 @@ function createConfigWindow() {
 }
 
 // Take keys from API key window and save them
-ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey, clientId, refreshKey }) => {
-    fs.writeFileSync('apiConfig.json', JSON.stringify({ twitchClientId, youtubeApiKey, clientId, refreshKey }, null, 2));
-    console.log('Received credentials:', { twitchClientId, youtubeApiKey, clientId, refreshKey });
-    let config = { twitchClientId, youtubeApiKey, clientId, refreshKey }
-    if (twitchClientId !== '' && youtubeApiKey !== '' && clientId !== '') {
+ipcMain.on('save-keys', (event, { twitchUsername, twitchClientId, twitchClientSecret }) => {
+    let config = { twitchUsername, twitchClientId, twitchClientSecret }
+    fs.writeFileSync('apiConfig.json', JSON.stringify(config, null, 2));
+    console.log('Received credentials:', config);
+    if (twitchClientId !== '' && twitchUsername !== '' && twitchClientSecret !== '') {
         disconnectTwitchWS();
-        twitchConnection = attemptTwitchConnect(config);
+        twitchConnection = attemptTwitchConnect();
     }
 
     if (configWindow) {
@@ -272,7 +303,7 @@ ipcMain.handle('get-api-keys', async () => {
             config = JSON.parse(data);
             if (config.twitchClientId !== '' && config.youtubeApiKey !== '' && config.clientId !== '') {
                 disconnectTwitchWS();
-                twitchConnection = attemptTwitchConnect(config);
+                twitchConnection = attemptTwitchConnect();
             }
             return config;
         }
@@ -281,24 +312,6 @@ ipcMain.handle('get-api-keys', async () => {
         return null;
     }
 });
-
-
-// Refresh API keys
-ipcMain.handle('regenerate-tokens', async () => {
-    console.log('Refreshing token with key:', config.refreshKey); // Debug
-    if (!config.refreshKey) {
-        throw new Error('Refresh key is missing. Check apiConfig.json.');
-    }
-    try {
-        const response = await axios.get(`https://twitchtokengenerator.com/api/refresh/${config.refreshKey}`);
-        console.log('Token refresh response:', response.data); // Debug response
-        return response.data;
-    } catch (error) {
-        console.error('Error refreshing token:', error.response ? error.response.data : error.message);
-        throw new Error(error.response ? error.response.data : error.message);
-    }
-});
-
 
 ///
 /// Theme Selector
@@ -380,32 +393,21 @@ app.on('activate', () => {
         createWindow();
     }
 });
-function attemptTwitchConnect(c) {
-    const { getOAuthToken } = require('./twitch');
+function attemptTwitchConnect() {
     const { startTwitchListener } = require('./twitchListener');
-    const oauthToken = c.youtubeApiKey;
-    const broadcasterUsername = c.twitchClientId;
-    const clientid = c.clientId;
-    const refreshKey = c.refreshKey;
-
+    const { twitchUsername } = JSON.parse(fs.readFileSync('apiConfig.json', 'utf8'));
 
     console.log("Attempting connect to Twitch API");
 
     (async () => {
         // Fetch broadcaster ID
-        const userResponse = await fetch(`https://api.twitch.tv/helix/users?login=${broadcasterUsername}`, {
-            method: 'GET',
-            headers: {
-                'Client-ID': clientid,
-                'Authorization': `Bearer ${oauthToken}`
-            }
-        });
+        const userResponse = await apiRequest(`https://api.twitch.tv/helix/users?login=${twitchUsername}`, { method: 'GET' });
         const userData = await userResponse.json();
         console.log(userData);
         const broadcasterId = userData.data[0].id;
 
         // Start the Twitch listener
-        startTwitchListener(clientid, oauthToken, broadcasterId, settings, mainWindow);
+        startTwitchListener(broadcasterId, settings, mainWindow);
     })();
 }
 
@@ -418,9 +420,7 @@ function disconnectTwitchWS() {
     console.log(result);
 }
 
-if (config.twitchClientId !== '' && config.youtubeApiKey !== '' && config.clientId !== '') {
-    twitchConnection = attemptTwitchConnect(config);
-}
+twitchConnection = attemptTwitchConnect();
 
 /*
 //STREAMELEMENTS
