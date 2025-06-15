@@ -1,5 +1,5 @@
 const fs = require('node:fs');
-const { readJsonFile } = require('./util');
+const { readJsonFile, writeJsonFile } = require('./util');
 //grabs auth from client info
 async function getOAuthToken(clientId, clientSecret) {
     const response = await fetch('https://id.twitch.tv/oauth2/token', {
@@ -35,7 +35,7 @@ async function apiRequest(url, options) {
         });
         if (refresh_res.ok) {
             const refresh_json = await refresh_res.json();
-            fs.writeFileSync('apiToken.json', JSON.stringify(refresh_json, null, 2));
+            writeJsonFile('apiToken.json', refresh_json);
             options.headers = {
                 ...options.headers,
                 'Authorization': `Bearer ${refresh_json['access_token']}`

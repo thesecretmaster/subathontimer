@@ -1,12 +1,12 @@
 const WebSocket = require('ws');
 const { apiRequest } = require('./twitch');
-const { getSubSettings } = require('./util');
+const { getSubSettings, createLogStream } = require('./util');
 const fs = require('fs');
 const { dialog } = require('electron');
 
 let twitchConnection;
 
-const logStream = fs.createWriteStream('eventsub.log', { flags: 'a' });
+const logStream = createLogStream('eventsub.log');
 
 async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
     const ws = new WebSocket(url);

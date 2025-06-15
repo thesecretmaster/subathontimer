@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { apiRequest } = require('./twitch');
-const { readJsonFile, getSubSettings } = require('./util');
+const { readJsonFile, getSubSettings, writeJsonFile, createLogStream } = require('./util');
 let mainWindow;
 let configWindow;
 let subathonConfigWindow;
@@ -11,9 +11,7 @@ let themeWindow;
 let themeCreatorWindow;
 let twitchConnection = null;
 
-const logFile = path.join(__dirname, 'log.txt');
-
-const logStream = fs.createWriteStream(logFile, { flags: 'a' }); // 'a' means append to the file
+const logStream = createLogStream('log.txt');
 
 const originalLog = console.log;
 console.log = function(...args) {
@@ -39,13 +37,6 @@ console.info = function(...args) {
     logStream.write(`[INFO] ${new Date().toISOString()} - ${args.join(' ')}\n`);
     originalInfo.apply(console, args);
 };
-
-// Ensure the log file is properly closed on exit
-process.on('exit', () => logStream.end());
-process.on('SIGINT', () => {
-    logStream.end();
-    process.exit();
-});
 
 ///
 /// Main Window
@@ -173,15 +164,14 @@ ipcMain.handle('clear-stored-time', (event) => {
 })
 
 ipcMain.on('store-time', (event, remaining_seconds, display_queue, running) => {
-    console.log("Storing time")
-    fs.writeFileSync('timerState.json', JSON.stringify({remaining_seconds, display_queue, updated_at: Date.now(), running}, null, 2));
+    writeJsonFile('timerState.json', {remaining_seconds, display_queue, updated_at: Date.now(), running});
 });
 
 let oauthServerRunning = false
 const twitchRedirectUri = 'http://localhost:8008/oauth'
 
 ipcMain.on('save-api-config', (event, data) => {
-    fs.writeFileSync('apiConfig.json', JSON.stringify(data, null, 2));
+    writeJsonFile('apiConfig.json', data);
     if (!oauthServerRunning) {
         const http = require('node:http');
 
@@ -189,7 +179,7 @@ ipcMain.on('save-api-config', (event, data) => {
             const params = new URLSearchParams(req.url.split('?', 2)[1])
             const token_res = await fetch('https://id.twitch.tv/oauth2/token', {method: 'POST', headers: { "Content-Type": "application/x-www-form-urlencoded", }, body: new URLSearchParams({client_id: data.twitchClientId, client_secret: data.twitchClientSecret, code: params.get('code'), grant_type: 'authorization_code', redirect_uri: twitchRedirectUri})})
             if (token_res.ok) {
-                fs.writeFileSync('apiToken.json', JSON.stringify(await token_res.json(), null, 2));
+                writeJsonFile('apiToken.json', await token_res.json());
                 res.writeHead(200, { 'Content-Type': 'text/plain' });
                 res.end('Token setup complete! You may now close this window');
                 server.close()
@@ -243,7 +233,7 @@ function createSubathonConfigWindow() {
 
 // Take settings from settings window and save them
 ipcMain.on('save-sub-settings', (event, settings) => {
-    fs.writeFileSync('subSettings.json', JSON.stringify(settings, null, 2));
+    writeJsonFile('subSettings.json', settings);
     console.log('Received credentials:', settings);
     if (settings.startingTime) {
         console.log(settings.startingTime);
@@ -284,7 +274,7 @@ function createConfigWindow() {
         }
     });
 
-    configWindow.loadFile('config.html');
+    configWindow.loadFile('apiConfig.html');
 
     configWindow.on('closed', () => {
         configWindow = null;
