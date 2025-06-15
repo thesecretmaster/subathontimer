@@ -1,10 +1,11 @@
 const WebSocket = require('ws');
 const { apiRequest } = require('./twitch');
+const { getSubSettings } = require('./util');
 
 let twitchConnection;
 
 
-async function startTwitchListener(broadcasterId, settings, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws') {
+async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws') {
     const ws = new WebSocket(url);
     twitchConnection = ws;
 
@@ -23,7 +24,7 @@ async function startTwitchListener(broadcasterId, settings, mainWindow, url = 'w
         if (message.metadata?.message_type === 'session_reconnect') {
             console.log("Got reconnect request")
             disconnectTwitchListener()
-            startTwitchListener(broadcasterId, settings, mainWindow, message.payload.session.reconnect_url)
+            startTwitchListener(broadcasterId, mainWindow, message.payload.session.reconnect_url)
         }
 
         if (message.metadata?.message_type === 'session_keepalive') {
@@ -31,6 +32,7 @@ async function startTwitchListener(broadcasterId, settings, mainWindow, url = 'w
         }
 
         if (message.metadata?.message_type === 'notification') {
+            const settings = getSubSettings();
             const event = message.payload.event;
             if (message.metadata.subscription_type === 'channel.subscribe') {
                 switch (event.tier) {
@@ -61,13 +63,13 @@ async function startTwitchListener(broadcasterId, settings, mainWindow, url = 'w
             }
 
             if (message.metadata.subscription_type === 'channel.hype_train.begin') {
-                const multi = 1.1;
+                const multi = 1 + settings.hypeTrainMulti;
                 console.log("twithcListener hypetrain started " + multi);
                 mainWindow.webContents.send('change-multi', multi);
             }
 
             if (message.metadata.subscription_type === 'channel.hype_train.progress') {
-                const multi = 1 + (message.payload.event.level * 0.1);
+                const multi = 1 + (message.payload.event.level * settings.hypeTrainMulti);
                 console.log("twithcListener hypetrain progress " + multi);
                 mainWindow.webContents.send('change-multi', multi);
             }

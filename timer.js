@@ -78,6 +78,14 @@ ipcRenderer.on('set-start-time', (event, seconds) => {
     }
 });
 
+ipcRenderer.on('set-time', (event, seconds, display_queue, is_running) => {
+    if (seconds === 0) acceptTime = false
+    if (is_running) startTimer()
+    setTimerTo(Number(seconds));
+    displayQueue = display_queue
+    processAddTimeQueue()
+});
+
 ipcRenderer.on('start-timer', (event) => {
     acceptTime = true;
     if (!running) startTimer();
@@ -99,6 +107,7 @@ ipcRenderer.on('apply-theme', (event, themeCssPath) => {
 
 function setTimerTo(seconds) {
     remainingSeconds = seconds;
+    if (!processingAddition) storeTime();
     timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
 }
 
@@ -134,15 +143,21 @@ function processAddTimeQueue() {
             setTimeout(() => {
                 displayElement.style.display = "none";
                 processingAddition = false;
+                storeTime();
                 processAddTimeQueue();
             }, 500);
         }
     }, 1);
 }
 
+function storeTime() {
+    ipcRenderer.send('store-time', remainingSeconds, displayQueue, running)
+}
+
 function startTimer() {
     if (interval) clearInterval(interval);
     running = true;
+    storeTime();
     interval = setInterval(() => {
         if (remainingSeconds > 0) {
             remainingSeconds -= 1;
@@ -150,6 +165,7 @@ function startTimer() {
         } else {
             clearInterval(interval);
             running = false;
+            storeTime();
             acceptTime = false;
         }
     }, 1000);
@@ -160,6 +176,7 @@ function pauseTimer() {
         clearInterval(interval);
         interval = null;
         running = false;
+        storeTime();
     }
 }
 

@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { apiRequest } = require('./twitch');
-const { readJsonFile } = require('./util');
+const { readJsonFile, getSubSettings } = require('./util');
 let mainWindow;
 let configWindow;
 let subathonConfigWindow;
@@ -10,22 +10,6 @@ let subathonControlsWindow;
 let themeWindow;
 let themeCreatorWindow;
 let twitchConnection = null;
-
-const SUB_SETTINGS_DEFAULT = {
-  "startingTime": "100",
-  "randomHourChance": ".01",
-  "oddsForMultiplier": ".1",
-  "amountForMultiplier": "4",
-  "tier1Increment": "12",
-  "tier2Increment": "360",
-  "tier3Increment": "900",
-  "bitIncrement": "30"
-}
-
-const settings = {
-    ...SUB_SETTINGS_DEFAULT,
-    ...readJsonFile('subSettings.json', {})
-};
 
 const logFile = path.join(__dirname, 'log.txt');
 
@@ -84,7 +68,14 @@ function createWindow() {
 
     mainWindow.loadFile('timer.html');
     mainWindow.once('ready-to-show', () => {
-        mainWindow.webContents.send('set-start-time', settings.startingTime);
+        try {
+            const timerState = readJsonFile('timerState.json')
+            let remaining_seconds = timerState.remaining_seconds
+            if (timerState.running) remaining_seconds -= Math.round((Date.now() - timerState.updated_at) / 1000) 
+            mainWindow.webContents.send('set-time', Math.max(remaining_seconds, 0), timerState.display_queue, timerState.running);
+        } catch (e) {
+            mainWindow.webContents.send('set-start-time', getSubSettings().startingTime);
+        }
     })
 
     mainWindow.webContents.on('context-menu', (e, params) => {
@@ -176,6 +167,11 @@ ipcMain.on('remove-time', (event, amount) => {
     mainWindow.webContents.send('add-time', amount, null);
 });
 
+ipcMain.on('store-time', (event, remaining_seconds, display_queue, running) => {
+    console.log("Storing time")
+    fs.writeFileSync('timerState.json', JSON.stringify({remaining_seconds, display_queue, updated_at: Date.now(), running}, null, 2));
+});
+
 let oauthServerRunning = false
 const twitchRedirectUri = 'http://localhost:8008/oauth'
 
@@ -253,7 +249,7 @@ ipcMain.on('save-sub-settings', (event, { startingTime, randomHourChance, oddsFo
 
 // Get and Restore settings
 ipcMain.handle('get-sub-settings', async () => {
-    return {...SUB_SETTINGS_DEFAULT, ...readJsonFile('subSettings.json', {})};
+    return getSubSettings();
 });
 
 ///
@@ -392,7 +388,7 @@ function attemptTwitchConnect() {
         const broadcasterId = userData.data[0].id;
 
         // Start the Twitch listener
-        startTwitchListener(broadcasterId, settings, mainWindow);
+        startTwitchListener(broadcasterId, mainWindow);
     })();
 }
 
