@@ -72,7 +72,8 @@ ipcRenderer.on('add-time', (event, secondsToAdd, subSettings, isSub) => {
     }
 });
 
-ipcRenderer.on('set-start-time', (event, seconds) => {
+ipcRenderer.on('set-start-time', (event, seconds, force) => {
+    if (force) pauseTimer();
     if (!running) {
         setTimerTo(Number(seconds));
     }

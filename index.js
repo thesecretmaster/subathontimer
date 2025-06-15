@@ -167,6 +167,11 @@ ipcMain.on('remove-time', (event, amount) => {
     mainWindow.webContents.send('add-time', amount, null);
 });
 
+ipcMain.handle('clear-stored-time', (event) => {
+    fs.unlinkSync('timerState.json')
+    mainWindow.webContents.send('set-start-time', getSubSettings().startingTime, true);
+})
+
 ipcMain.on('store-time', (event, remaining_seconds, display_queue, running) => {
     console.log("Storing time")
     fs.writeFileSync('timerState.json', JSON.stringify({remaining_seconds, display_queue, updated_at: Date.now(), running}, null, 2));
