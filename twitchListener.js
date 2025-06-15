@@ -10,7 +10,27 @@ const logStream = fs.createWriteStream('eventsub.log', { flags: 'a' });
 
 async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws') {
     const ws = new WebSocket(url);
+    let last_keepalive = new Date();
     twitchConnection = ws;
+
+    const pingLoop = setInterval(() => {
+        logStream.write(JSON.stringify({log: true, type: 'ping', time: new Date().toISOString()}));
+        ws.ping()
+    }, 10000)
+
+    ws.on('pong', () => {
+        logStream.write(JSON.stringify({log: true, type: 'pong', time: new Date().toISOString()}));
+    })
+
+    let keepaliveLoop;
+    keepaliveLoop = setInterval(() => {
+        if (new Date() - last_keepalive > 120 * 1000) {
+            ws.terminate()
+            startTwitchListener(broadcasterId, mainWindow)
+            keepaliveLoop.close()
+            pingLoop.close()
+        }
+    }, 1000)
 
     ws.on('open', () => {
         console.log('Connected to Twitch EventSub WebSocket.');
@@ -21,6 +41,9 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
             logStream.write(data);
             const message = JSON.parse(data);
             console.log(JSON.stringify(message));
+            last_keepalive = new Date();
+            mainWindow.webContents.send('ws-keepalive', last_keepalive)
+
             if (message.metadata?.message_type === 'session_welcome') {
                 console.log('Twitch EventSub session established:', JSON.stringify(message));
                 await subscribeToEvents(broadcasterId, message.payload.session.id);
@@ -30,10 +53,6 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
                 console.log("Got reconnect request")
                 disconnectTwitchListener()
                 startTwitchListener(broadcasterId, mainWindow, message.payload.session.reconnect_url)
-            }
-
-            if (message.metadata?.message_type === 'session_keepalive') {
-                mainWindow.webContents.send('ws-keepalive', new Date())
             }
 
             if (message.metadata?.message_type === 'notification') {
@@ -93,6 +112,8 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
 
     ws.on('close', () => {
         console.log('Disconnected from Twitch EventSub WebSocket.');
+        keepaliveLoop.close()
+        pingLoop.close()
     });
 
     return ws;

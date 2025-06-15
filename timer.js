@@ -13,7 +13,7 @@ let last_keepalive = new Date();
 let acceptTime = true; // Allows time to be added to the timer
 
 function updateKeepaliveIndicator() {
-    if (new Date() - last_keepalive > 90 * 1000) {
+    if (new Date() - last_keepalive > 30 * 1000) {
         document.getElementById('keepaliveWarn').style.display = 'block'
     } else {
         document.getElementById('keepaliveWarn').style.display = 'none'
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateKeepaliveIndicator, 1000)
 });
 
-ipcRenderer.on('ws-keepalive', (keepalive_ts) => {
+ipcRenderer.on('ws-keepalive', (event, keepalive_ts) => {
     last_keepalive = keepalive_ts
     updateKeepaliveIndicator()
 })
