@@ -8,7 +8,7 @@ let twitchConnection;
 
 const logStream = fs.createWriteStream('eventsub.log', { flags: 'a' });
 
-async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws') {
+async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
     const ws = new WebSocket(url);
     let last_keepalive = new Date();
     twitchConnection = ws;
@@ -46,13 +46,16 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
 
             if (message.metadata?.message_type === 'session_welcome') {
                 console.log('Twitch EventSub session established:', JSON.stringify(message));
-                await subscribeToEvents(broadcasterId, message.payload.session.id);
+                if (prev_connection !== null) {
+                    prev_connection.close();
+                } else {
+                    await subscribeToEvents(broadcasterId, message.payload.session.id);
+                }
             }
 
             if (message.metadata?.message_type === 'session_reconnect') {
                 console.log("Got reconnect request")
-                disconnectTwitchListener()
-                startTwitchListener(broadcasterId, mainWindow, message.payload.session.reconnect_url)
+                startTwitchListener(broadcasterId, mainWindow, message.payload.session.reconnect_url, ws)
             }
 
             if (message.metadata?.message_type === 'notification') {
