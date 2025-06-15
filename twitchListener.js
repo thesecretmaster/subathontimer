@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 const { apiRequest } = require('./twitch');
 const { getSubSettings } = require('./util');
 const fs = require('fs');
+const { dialog } = require('electron');
 
 let twitchConnection;
 
@@ -16,72 +17,77 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
     });
 
     ws.on('message', async (data) => {
-        logStream.write(data);
-        const message = JSON.parse(data);
-        console.log(JSON.stringify(message));
-        if (message.metadata?.message_type === 'session_welcome') {
-            console.log('Twitch EventSub session established:', JSON.stringify(message));
-            await subscribeToEvents(broadcasterId, message.payload.session.id);
-        }
+        try {
+            logStream.write(data);
+            const message = JSON.parse(data);
+            console.log(JSON.stringify(message));
+            if (message.metadata?.message_type === 'session_welcome') {
+                console.log('Twitch EventSub session established:', JSON.stringify(message));
+                await subscribeToEvents(broadcasterId, message.payload.session.id);
+            }
 
-        if (message.metadata?.message_type === 'session_reconnect') {
-            console.log("Got reconnect request")
-            disconnectTwitchListener()
-            startTwitchListener(broadcasterId, mainWindow, message.payload.session.reconnect_url)
-        }
+            if (message.metadata?.message_type === 'session_reconnect') {
+                console.log("Got reconnect request")
+                disconnectTwitchListener()
+                startTwitchListener(broadcasterId, mainWindow, message.payload.session.reconnect_url)
+            }
 
-        if (message.metadata?.message_type === 'session_keepalive') {
-            mainWindow.webContents.send('ws-keepalive', new Date())
-        }
+            if (message.metadata?.message_type === 'session_keepalive') {
+                mainWindow.webContents.send('ws-keepalive', new Date())
+            }
 
-        if (message.metadata?.message_type === 'notification') {
-            const settings = getSubSettings();
-            const event = message.payload.event;
-            if (message.metadata.subscription_type === 'channel.subscribe') {
-                switch (event.tier) {
-                    case '1000':
-                        mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
-                        break;
-                    case '2000':
-                        mainWindow.webContents.send('add-time', settings.tier2Increment, settings, true);
-                        break;
-                    case '3000':
-                        mainWindow.webContents.send('add-time', settings.tier3Increment, settings, true);
-                        break;
-                    default:
-                        console.log('Default subscription tier applied');
-                        mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
-                        break;
+            if (message.metadata?.message_type === 'notification') {
+                const settings = getSubSettings();
+                const event = message.payload.event;
+                if (message.metadata.subscription_type === 'channel.subscribe') {
+                    switch (event.tier) {
+                        case '1000':
+                            mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
+                            break;
+                        case '2000':
+                            mainWindow.webContents.send('add-time', settings.tier2Increment, settings, true);
+                            break;
+                        case '3000':
+                            mainWindow.webContents.send('add-time', settings.tier3Increment, settings, true);
+                            break;
+                        default:
+                            console.log('Default subscription tier applied');
+                            mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
+                            break;
+                    }
+                }
+                if (message.metadata.subscription_type === 'channel.cheer') {
+
+                    const increment = settings.bitIncrement * (event.bits / 100);
+                    if (event.user_login === 'jakezsr') {
+                        mainWindow.webContents.send('add-time', 10000, settings, true);
+                    } else {
+                        mainWindow.webContents.send('add-time', increment, settings, false);
+                    }
+
+                }
+
+                if (message.metadata.subscription_type === 'channel.hype_train.begin') {
+                    const multi = 1 + Number(settings.hypeTrainMulti);
+                    console.log("twithcListener hypetrain started " + multi);
+                    mainWindow.webContents.send('change-multi', multi);
+                }
+
+                if (message.metadata.subscription_type === 'channel.hype_train.progress') {
+                    const multi = 1 + (message.payload.event.level * Number(settings.hypeTrainMulti));
+                    console.log("twithcListener hypetrain progress " + multi);
+                    mainWindow.webContents.send('change-multi', multi);
+                }
+
+                if (message.metadata.subscription_type === 'channel.hype_train.end') {
+                    const multi = 0;
+                    console.log("twithcListener hypetrain end " + multi);
+                    mainWindow.webContents.send('change-multi', multi);
                 }
             }
-            if (message.metadata.subscription_type === 'channel.cheer') {
-
-                const increment = settings.bitIncrement * (event.bits / 100);
-                if (event.user_login === 'jakezsr') {
-                    mainWindow.webContents.send('add-time', 10000, settings, true);
-                } else {
-                    mainWindow.webContents.send('add-time', increment, settings, false);
-                }
-
-            }
-
-            if (message.metadata.subscription_type === 'channel.hype_train.begin') {
-                const multi = 1 + Number(settings.hypeTrainMulti);
-                console.log("twithcListener hypetrain started " + multi);
-                mainWindow.webContents.send('change-multi', multi);
-            }
-
-            if (message.metadata.subscription_type === 'channel.hype_train.progress') {
-                const multi = 1 + (message.payload.event.level * Number(settings.hypeTrainMulti));
-                console.log("twithcListener hypetrain progress " + multi);
-                mainWindow.webContents.send('change-multi', multi);
-            }
-
-            if (message.metadata.subscription_type === 'channel.hype_train.end') {
-                const multi = 0;
-                console.log("twithcListener hypetrain end " + multi);
-                mainWindow.webContents.send('change-multi', multi);
-            }
+        } catch (err) {
+            dialog.showMessageBox({title: "WebSocket listener error", message: `${err.toString()}\n${err.stack}`, type: "error"})
+            console.error(err, err.stack)
         }
     });
 
