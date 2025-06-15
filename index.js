@@ -242,11 +242,13 @@ function createSubathonConfigWindow() {
 }
 
 // Take settings from settings window and save them
-ipcMain.on('save-sub-settings', (event, { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }) => {
-    fs.writeFileSync('subSettings.json', JSON.stringify({ startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }, null, 2));
-    console.log('Received credentials:', { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
-    console.log(startingTime);
-    mainWindow.webContents.send('set-start-time', startingTime);
+ipcMain.on('save-sub-settings', (event, settings) => {
+    fs.writeFileSync('subSettings.json', JSON.stringify(settings, null, 2));
+    console.log('Received credentials:', settings);
+    if (settings.startingTime) {
+        console.log(settings.startingTime);
+        mainWindow.webContents.send('set-start-time', settings.startingTime);
+    }
     if (configWindow) {
         configWindow.close();
     }

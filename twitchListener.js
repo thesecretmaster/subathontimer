@@ -1,9 +1,11 @@
 const WebSocket = require('ws');
 const { apiRequest } = require('./twitch');
 const { getSubSettings } = require('./util');
+const fs = require('fs');
 
 let twitchConnection;
 
+const logStream = fs.createWriteStream('eventsub.log', { flags: 'a' });
 
 async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws') {
     const ws = new WebSocket(url);
@@ -14,6 +16,7 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
     });
 
     ws.on('message', async (data) => {
+        logStream.write(data);
         const message = JSON.parse(data);
         console.log(JSON.stringify(message));
         if (message.metadata?.message_type === 'session_welcome') {
@@ -63,13 +66,13 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
             }
 
             if (message.metadata.subscription_type === 'channel.hype_train.begin') {
-                const multi = 1 + settings.hypeTrainMulti;
+                const multi = 1 + Number(settings.hypeTrainMulti);
                 console.log("twithcListener hypetrain started " + multi);
                 mainWindow.webContents.send('change-multi', multi);
             }
 
             if (message.metadata.subscription_type === 'channel.hype_train.progress') {
-                const multi = 1 + (message.payload.event.level * settings.hypeTrainMulti);
+                const multi = 1 + (message.payload.event.level * Number(settings.hypeTrainMulti));
                 console.log("twithcListener hypetrain progress " + multi);
                 mainWindow.webContents.send('change-multi', multi);
             }
