@@ -4,8 +4,8 @@ const { apiRequest } = require('./twitch');
 let twitchConnection;
 
 
-async function startTwitchListener(broadcasterId, settings, mainWindow) {
-    const ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
+async function startTwitchListener(broadcasterId, settings, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws') {
+    const ws = new WebSocket(url);
     twitchConnection = ws;
 
     ws.on('open', () => {
@@ -18,6 +18,16 @@ async function startTwitchListener(broadcasterId, settings, mainWindow) {
         if (message.metadata?.message_type === 'session_welcome') {
             console.log('Twitch EventSub session established:', JSON.stringify(message));
             await subscribeToEvents(broadcasterId, message.payload.session.id);
+        }
+
+        if (message.metadata?.message_type === 'session_reconnect') {
+            console.log("Got reconnect request")
+            disconnectTwitchListener()
+            startTwitchListener(broadcasterId, settings, mainWindow, message.payload.session.reconnect_url)
+        }
+
+        if (message.metadata?.message_type === 'session_keepalive') {
+            mainWindow.webContents.send('ws-keepalive', new Date())
         }
 
         if (message.metadata?.message_type === 'notification') {

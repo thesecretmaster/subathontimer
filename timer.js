@@ -8,13 +8,28 @@ let running = false;
 let adjustmentInterval = null;
 let displayQueue = []; // Queue for handling each `add-time` event individually
 let processingAddition = false; // To track if an addition is being processed
+let last_keepalive = new Date();
 
 let acceptTime = true; // Allows time to be added to the timer
+
+function updateKeepaliveIndicator() {
+    if (new Date() - last_keepalive > 90 * 1000) {
+        document.getElementById('keepaliveWarn').style.display = 'block'
+    } else {
+        document.getElementById('keepaliveWarn').style.display = 'none'
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     timerElement = document.getElementById("subTimer");
     createAdditionDisplayElement();
+    setInterval(updateKeepaliveIndicator, 1000)
 });
+
+ipcRenderer.on('ws-keepalive', (keepalive_ts) => {
+    last_keepalive = keepalive_ts
+    updateKeepaliveIndicator()
+})
 
 ipcRenderer.on('add-time', (event, secondsToAdd, subSettings, isSub) => {
 

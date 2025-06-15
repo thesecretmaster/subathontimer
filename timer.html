@@ -1,4 +1,5 @@
 <link id="style" rel="stylesheet" href="themes/Default/theme.css">
+<span id="keepaliveWarn">⚠️</span>
 <div id="subTimerDiv">
     <h1 id="subTimer">00:00:00</h1>
 </div>
@@ -8,3 +9,10 @@
     await window.electronAPI.getSettings();
     });
 </script>
+<style>
+#keepaliveWarn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+}
+</style>
