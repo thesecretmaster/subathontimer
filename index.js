@@ -1,7 +1,7 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const { apiRequest } = require('./twitch');
-const { readJsonFile, getSubSettings, writeJsonFile, createLogStream } = require('./util');
+const { readJsonFile, getSubSettings, writeJsonFile, createLogStream, createFileStream, readFile } = require('./util');
 const { timer } = require('./timerUtils');
 const { TwitchListener } = require('./twitchListener');
 let mainWindow;
@@ -81,6 +81,12 @@ function createWindow() {
                 },
             },
             {
+                label: 'Logs',
+                click: () => {
+                    logsWindow.create();
+                },
+            },
+            {
                 label: 'Theme Selector',
                 click: () => {
                     themeWindow.create();
@@ -121,7 +127,28 @@ class SingletonWindow {
             });
         }
     }
+
+    use(f) {
+        if (this.#win) f(this.#win)
+    }
 }
+
+const logsWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
+        width: 800,
+        height: 300,
+        parent: mainWindow,
+        autoHideMenuBar: true,
+        resizable: false,
+        icon: __dirname + 'img/icon.ico',
+        modal: true,
+        webPreferences: {
+            preload: path.join(__dirname, 'preloads/preload-logs.js')
+        }
+    });
+    win.loadFile('logs.html');
+    return win
+})
 
 ///
 /// Subathon Controls Window
@@ -265,13 +292,26 @@ const configWindow = new SingletonWindow(() => {
 })
 
 // Get and Restore API Keys
-ipcMain.handle('get-api-keys', async () => {
+ipcMain.handle('get-api-keys', () => {
     const config = readJsonFile('apiConfig.json', {});
     if (config.twitchClientId && config.youtubeApiKey && config.clientId) {
         disconnectTwitchWS();
         attemptTwitchConnect();
     }
     return config;
+});
+
+
+const timerLogStream = createFileStream('logs.json')
+timer.on('update', (state, metadata) => {
+    const log = {logType: 'timerState', logData: {state, metadata}}
+    timerLogStream.write(JSON.stringify(log) + "\n")
+    logsWindow.use((win) => win.webContents.send('add-log', log))
+})
+
+ipcMain.handle('get-logs', () => {
+    const logs = readFile('logs.json', '').split('\n').filter(line => line !== '')
+    return logs.map(i => JSON.parse(i))
 });
 
 ///

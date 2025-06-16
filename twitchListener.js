@@ -6,6 +6,11 @@ const { dialog } = require('electron');
 const { subathon_state } = require('./subathonState');
 
 const logStream = createLogStream('eventsub.log');
+const EVENTSUB_SOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws'
+const EVENTSUB_SUBSCRIBE_URL = 'https://api.twitch.tv/helix/eventsub/subscriptions'
+
+// const EVENTSUB_SOCKET_URL = 'ws://127.0.0.1:8080/ws'
+// const EVENTSUB_SUBSCRIBE_URL = 'http://127.0.0.1:8080/eventsub/subscriptions'
 
 class TwitchListener extends EventEmitter {
     #disconnected = false;
@@ -13,13 +18,13 @@ class TwitchListener extends EventEmitter {
     #broadcasterId;
     #twitchConnection;
 
-    constructor(broadcasterId, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
+    constructor(broadcasterId, url = EVENTSUB_SOCKET_URL, prev_connection = null) {
         super();
         this.#broadcasterId = broadcasterId
         this.#start(url, prev_connection)
     }
 
-    #start(url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
+    #start(url = EVENTSUB_SOCKET_URL, prev_connection = null) {
         const ws = new WebSocket(url);
         let last_keepalive = null;
         this.#twitchConnection = ws;
@@ -77,10 +82,10 @@ class TwitchListener extends EventEmitter {
                 if (message.metadata?.message_type === 'notification') {
                     const event = message.payload.event;
                     if (message.metadata.subscription_type === 'channel.subscribe') {
-                        subathon_state.addSub(event.tier)
+                        subathon_state.addSub(event.tier, event)
                     }
                     if (message.metadata.subscription_type === 'channel.cheer') {
-                        subathon_state.addBits(event.bits)
+                        subathon_state.addBits(event.bits, event)
                     }
 
                     if (message.metadata.subscription_type === 'channel.hype_train.begin') {
@@ -172,7 +177,7 @@ class TwitchListener extends EventEmitter {
 
         let any_errors = false;
         for (const sub of subscriptions) {
-            const response = await apiRequest('https://api.twitch.tv/helix/eventsub/subscriptions', { body: JSON.stringify(sub) })
+            const response = await apiRequest(EVENTSUB_SUBSCRIBE_URL, { body: JSON.stringify(sub) })
 
             if (response.ok) {
                 console.log(`Successfully subscribed to ${sub.type}`);

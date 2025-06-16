@@ -29,10 +29,11 @@ class TimerState extends EventEmitter {
         }
     }
 
-    pause() {
+    pause(metadata = null) {
         if (this.#running) {
-            this.#running = false
             this.#setTime(this.#currentTime())
+            this.#running = false
+            this.#changeState(metadata);
         }
     }
 
@@ -45,7 +46,7 @@ class TimerState extends EventEmitter {
 
     #currentTime() {
         let v;
-        if (this.#last_updated === null) {
+        if (this.#last_updated === null || !this.#running) {
             v = this.#ms_remaining
         } else {
             v = this.#ms_remaining - (new Date() - this.#last_updated)
@@ -53,10 +54,9 @@ class TimerState extends EventEmitter {
         return v >= 0 ? v : 0;
     }
 
-    #setTime(newTime, metadata = null) {
+    #setTime(newTime) {
         this.#ms_remaining = newTime
         if (this.#last_updated !== null) this.#last_updated = new Date()
-        this.#changeState(metadata);
     }
 
     getState() {
@@ -82,7 +82,8 @@ class TimerState extends EventEmitter {
     }
 
     modify(f, metadata = null) {
-        this.#setTime(f(this.#currentTime()), metadata)
+        this.#setTime(f(this.#currentTime()))
+        this.#changeState(metadata);
 
         return this.#ms_remaining
     }

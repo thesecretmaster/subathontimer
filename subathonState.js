@@ -19,10 +19,15 @@ class SubathonState {
         }
     }
 
-    // tier is from the twitch API: https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-subscribe-event
-    addSub(tier) {
+    #base_multiplier() {
         const settings = getSubSettings()
-        let multiplier = 1 + this.#hypeTrainLevel * Number(settings.hypeTrainMulti)
+        return 1 + this.#hypeTrainLevel * Number(settings.hypeTrainMulti)
+    }
+
+    // tier is from the twitch API: https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-subscribe-event
+    addSub(tier, event) {
+        const settings = getSubSettings()
+        let multiplier = this.#base_multiplier()
         let secondsToAdd;
         switch (tier) {
             case '1000':
@@ -53,13 +58,14 @@ class SubathonState {
 
         secondsToAdd = Math.trunc(secondsToAdd * multiplier);
 
-        timer.addSeconds(secondsToAdd, {type: 'sub', randomHour, randomMulti, secondsAdded: secondsToAdd, tier})
+        timer.addSeconds(secondsToAdd, {type: 'sub', randomHour, randomMulti, multiplier, secondsAdded: secondsToAdd, event})
     }
 
-    addBits(bits) {
+    addBits(bits, event) {
         const settings = getSubSettings()
-        const secondsToAdd = Number(settings.bitIncrement) * (bits / 100);
-        timer.addSeconds(secondsToAdd, {type: 'bits', secondsAdded: secondsToAdd, bits})
+        const multiplier = this.#base_multiplier()
+        const secondsToAdd = Number(settings.bitIncrement) * (bits / 100) * multiplier;
+        timer.addSeconds(secondsToAdd, {type: 'bits', secondsAdded: secondsToAdd, multiplier, event})
     }
 }
 
