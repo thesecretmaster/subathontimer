@@ -1,13 +1,8 @@
 const { ipcRenderer } = require('electron');
-window.electronAPI = {
-  saveKeys: (data) => ipcRenderer.send('save-keys', data),
-  getKeys: () => ipcRenderer.invoke('get-api-keys'),
-  refreshTokens: () => ipcRenderer.invoke('regenerate-tokens')
-};
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Retrieve saved keys
-  const config = await window.electronAPI.getKeys();
+  const config = await ipcRenderer.invoke('get-api-keys');
   document.getElementById('twitchUsername').value = config.twitchUsername || '';
   document.getElementById('twitchClientId').value = config.twitchClientId || '';
   document.getElementById('twitchClientSecret').value = config.twitchClientSecret || '';

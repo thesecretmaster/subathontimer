@@ -52,8 +52,6 @@ function createWindow() {
         modal: true,
         icon: __dirname + 'img/icon.ico',
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
             preload: path.join(__dirname, 'preloads/preload-timer.js'),
         },
     });
@@ -167,6 +165,7 @@ ipcMain.on('save-api-config', (event, data) => {
     if (!oauthServerRunning) {
         const http = require('node:http');
 
+        console.log("Creating Twitch OAuth HTTP server")
         const server = http.createServer(async (req, res) => {
             const params = new URLSearchParams(req.url.split('?', 2)[1])
             const token_res = await fetch('https://id.twitch.tv/oauth2/token', {method: 'POST', headers: { "Content-Type": "application/x-www-form-urlencoded", }, body: new URLSearchParams({client_id: data.twitchClientId, client_secret: data.twitchClientSecret, code: params.get('code'), grant_type: 'authorization_code', redirect_uri: twitchRedirectUri})})
@@ -184,6 +183,9 @@ ipcMain.on('save-api-config', (event, data) => {
                 res.end(await token_res.bytes());
             }
         });
+        server.on('close', () => {
+            console.log("Twitch OAuth HTTP server closing")
+        })
 
       server.listen(8008);
       oauthServerRunning = true
@@ -212,8 +214,6 @@ function createSubathonConfigWindow() {
         modal: true,
         webPreferences: {
             preload: path.join(__dirname, 'preloads/preload-subsettings.js'),
-            nodeIntegration: false,
-            contextIsolation: false
         }
     });
     subathonConfigWindow.loadFile('subathonsettings.html');
@@ -228,7 +228,7 @@ ipcMain.on('save-sub-settings', (event, settings) => {
     writeJsonFile('subSettings.json', settings);
     console.log('Received credentials:', settings);
     if (settings.startingTime) {
-        timer.setStartTime(settings.startingTime)
+        timer.setStartTimeSeconds(settings.startingTime)
     }
     if (configWindow) {
         configWindow.close();
@@ -260,8 +260,6 @@ function createConfigWindow() {
         icon: __dirname + 'img/icon.ico',
         webPreferences: {
             preload: path.join(__dirname, 'preloads/preload-apiconfig.js'),
-            nodeIntegration: false,
-            contextIsolation: false
         }
     });
 

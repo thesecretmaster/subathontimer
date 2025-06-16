@@ -36,9 +36,9 @@ class TimerState extends EventEmitter {
         }
     }
 
-    setStartTimeMs(start_time) {
+    setStartTimeSeconds(start_seconds) {
         if (this.#last_updated === null) {
-            this.#ms_remaining = start_time
+            this.#ms_remaining = start_seconds * 1000
             this.#changeState();
         }
     }
