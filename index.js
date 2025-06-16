@@ -5,11 +5,6 @@ const { readJsonFile, getSubSettings, writeJsonFile, createLogStream } = require
 const { timer } = require('./timerUtils');
 const { TwitchListener } = require('./twitchListener');
 let mainWindow;
-let configWindow;
-let subathonConfigWindow;
-let subathonControlsWindow;
-let themeWindow;
-let themeCreatorWindow;
 let twitchConnection = null;
 
 const logStream = createLogStream('log.txt');
@@ -70,31 +65,31 @@ function createWindow() {
             {
                 label: 'Configure API Keys',
                 click: () => {
-                    createConfigWindow();
+                    configWindow.create();
                 },
             },
             {
                 label: 'Subathon Settings',
                 click: () => {
-                    createSubathonConfigWindow();
+                    subathonConfigWindow.create();
                 },
             },
             {
                 label: 'Controls',
                 click: () => {
-                    createSubathonControlsWindow();
+                    subathonControlsWindow.create();
                 },
             },
             {
                 label: 'Theme Selector',
                 click: () => {
-                    createThemeWindow();
+                    themeWindow.create();
                 },
             },
             {
                 label: 'Theme Creator',
                 click: () => {
-                    createthemeCreatorWindow();
+                    themeCreatorWindow.create();
                 },
             },
         ]);
@@ -102,17 +97,38 @@ function createWindow() {
     });
 }
 
+class SingletonWindow {
+    #win = null;
+    #create_window;
+
+    constructor(createWindow) {
+        this.#create_window = createWindow;
+    }
+
+    close() {
+        if (this.#win !== null) {
+            this.#win.close();
+        }
+    }
+
+    create() {
+        if (this.#win !== null) {
+            this.#win.focus()
+        } else {
+            this.#win = this.#create_window();
+            this.#win.on('closed', () => {
+                this.#win = null
+            });
+        }
+    }
+}
+
 ///
 /// Subathon Controls Window
 ///
 
-function createSubathonControlsWindow() {
-    if (subathonControlsWindow) {
-        subathonControlsWindow.focus();
-        return;
-    }
-
-    subathonControlsWindow = new BrowserWindow({
+const subathonControlsWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
         width: 800,
         height: 300,
         parent: mainWindow,
@@ -126,22 +142,19 @@ function createSubathonControlsWindow() {
             preload: path.join(__dirname, 'preloads/preload-subcontrols.js')
         }
     });
-    subathonControlsWindow.loadFile('subathoncontrols.html');
+    win.loadFile('subathoncontrols.html');
+    return win
+})
 
-    subathonControlsWindow.on('closed', () => {
-        subathonControlsWindow = null
-    });
-}
-
-ipcMain.handle('start-timer', async () => {
+ipcMain.handle('start-timer', () => {
     timer.resume()
 });
 
-ipcMain.handle('pause-timer', async () => {
+ipcMain.handle('pause-timer', () => {
     timer.pause()
 });
 
-ipcMain.handle('skip-animation', async () => {
+ipcMain.handle('skip-animation', () => {
     mainWindow.webContents.send('skip-animation')
 });
 
@@ -153,7 +166,7 @@ ipcMain.on('remove-time', (event, amount) => {
     timer.addSeconds(-Number(amount))
 });
 
-ipcMain.handle('clear-stored-time', (event) => {
+ipcMain.handle('clear-stored-time', () => {
     timer.reset()
 })
 
@@ -198,13 +211,8 @@ ipcMain.on('save-api-config', (event, data) => {
 /// Subathon Settings Window
 ///
 
-function createSubathonConfigWindow() {
-    if (subathonConfigWindow) {
-        subathonConfigWindow.focus();
-        return;
-    }
-
-    subathonConfigWindow = new BrowserWindow({
+const subathonConfigWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
         width: 450,
         height: 700,
         parent: mainWindow,
@@ -216,12 +224,9 @@ function createSubathonConfigWindow() {
             preload: path.join(__dirname, 'preloads/preload-subsettings.js'),
         }
     });
-    subathonConfigWindow.loadFile('subathonsettings.html');
-
-    subathonConfigWindow.on('closed', () => {
-        subathonConfigWindow = null
-    });
-}
+    win.loadFile('subathonsettings.html');
+    return win;
+})
 
 // Take settings from settings window and save them
 ipcMain.on('save-sub-settings', (event, settings) => {
@@ -230,9 +235,7 @@ ipcMain.on('save-sub-settings', (event, settings) => {
     if (settings.startingTime) {
         timer.setStartTimeSeconds(settings.startingTime)
     }
-    if (configWindow) {
-        configWindow.close();
-    }
+    configWindow.close();
 });
 
 // Get and Restore settings
@@ -244,13 +247,8 @@ ipcMain.handle('get-sub-settings', async () => {
 /// API Key Window
 ///
 
-function createConfigWindow() {
-    if (configWindow) {
-        configWindow.focus();
-        return;
-    }
-
-    configWindow = new BrowserWindow({
+const configWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
         width: 350,
         height: 500,
         autoHideMenuBar: true,
@@ -262,13 +260,9 @@ function createConfigWindow() {
             preload: path.join(__dirname, 'preloads/preload-apiconfig.js'),
         }
     });
-
-    configWindow.loadFile('apiConfig.html');
-
-    configWindow.on('closed', () => {
-        configWindow = null;
-    });
-}
+    win.loadFile('apiConfig.html');
+    return win;
+})
 
 // Get and Restore API Keys
 ipcMain.handle('get-api-keys', async () => {
@@ -284,13 +278,8 @@ ipcMain.handle('get-api-keys', async () => {
 /// Theme Selector
 ///
 
-function createThemeWindow() {
-    if (themeWindow) {
-        themeWindow.focus();
-        return;
-    }
-
-    themeWindow = new BrowserWindow({
+const themeWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
         width: 350,
         height: 700,
         autoHideMenuBar: true,
@@ -303,13 +292,9 @@ function createThemeWindow() {
             contextIsolation: false
         }
     });
-
-    themeWindow.loadFile('themeselector.html');
-
-    themeWindow.on('closed', () => {
-        themeWindow = null;
-    });
-}
+    win.loadFile('themeselector.html');
+    return win;
+})
 
 ipcMain.on('apply-theme', (event, themeCssPath) => {
     mainWindow.webContents.send('apply-theme', themeCssPath);
@@ -319,13 +304,8 @@ ipcMain.on('apply-theme', (event, themeCssPath) => {
 /// Theme Creator
 ///
 
-function createthemeCreatorWindow() {
-    if (themeCreatorWindow) {
-        themeCreatorWindow.focus();
-        return;
-    }
-
-    themeCreatorWindow = new BrowserWindow({
+const themeCreatorWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
         width: 350,
         height: 700,
         autoHideMenuBar: true,
@@ -338,14 +318,9 @@ function createthemeCreatorWindow() {
             contextIsolation: false
         }
     });
-
-    themeCreatorWindow.loadFile('themecreator.html');
-
-    themeCreatorWindow.on('closed', () => {
-        themeCreatorWindow = null;
-    });
-}
-
+    win.loadFile('themecreator.html');
+    return win;
+})
 
 app.whenReady().then(createWindow);
 
