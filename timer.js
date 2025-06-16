@@ -50,16 +50,20 @@ ipcRenderer.on('update-timer', (event, newState, metadata) => {
 })
 
 function currentSecondsRemaining(state = null) {
+    return Math.round(currentMsRemaining(state) / 1000)
+}
+
+function currentMsRemaining(state = null) {
     if (state === null) state = currentState;
     let v;
     if (state === null) {
         return null
     } else if (state.last_updated === null) {
-        v = state.seconds_remaining
+        v = state.ms_remaining
     } else if (state.running) {
-        v = state.seconds_remaining - Math.round((new Date() - state.last_updated) / 1000)
+        v = state.ms_remaining - (new Date() - state.last_updated)
     } else {
-        v = state.seconds_remaining
+        v = state.ms_remaining
     }
     return v >= 0 ? v : 0
 }
@@ -75,6 +79,7 @@ function processStateQueue() {
         currentState = newState
         timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
         processingAddition = false;
+        console.log("Done processing inital state update")
         return
     }
 
@@ -114,15 +119,12 @@ function processStateQueue() {
             timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
             skipAnimation = false
         }
-        const currentSeconds = currentSecondsRemaining();
-        const newSeconds = currentSecondsRemaining(newState);
-        if (currentSeconds > newSeconds) {
-            currentState.seconds_remaining -= 1;
-            timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
-        } else if (currentSeconds < newSeconds) {
-            currentState.seconds_remaining += 1;
-            timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
-        } else {
+        const currentMs = currentMsRemaining();
+        const newMs = currentMsRemaining(newState);
+        const diff = Math.max(Math.min(1000, newMs - currentMs), -1000);
+        currentState.ms_remaining += diff
+        timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+        if (Math.abs(diff) < 1000) {
             currentState = newState
             clearInterval(adjustmentInterval);
             adjustmentInterval = null;
@@ -134,6 +136,7 @@ function processStateQueue() {
                 displayElement.style.display = "none";
                 processingAddition = false;
                 skipAnimation = false
+                console.log("Done processing state update")
                 processStateQueue();
             }, 500);
         }
@@ -160,7 +163,7 @@ setInterval(() => {
     }
     if (remainingSeconds > 0) remainingSeconds === 0
     timerElement.textContent = convertSecondsToHMS(remainingSeconds);
-}, 500)
+}, 100)
 
 function convertSecondsToHMS(seconds) {
     const hours = Math.floor(seconds / (60 * 60));

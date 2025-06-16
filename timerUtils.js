@@ -5,12 +5,12 @@ const STATEFILE_NAME = 'timerState.json'
 
 class TimerState extends EventEmitter {
     #last_updated;
-    #seconds_remaining;
+    #ms_remaining;
     #running;
 
-    constructor(start_seconds, running = false, last_updated = null) {
+    constructor(start_ms, running = false, last_updated = null) {
         super()
-        this.#seconds_remaining = start_seconds
+        this.#ms_remaining = start_ms
         this.#running = running
 
         if (this.#running && last_updated === null) {
@@ -36,9 +36,9 @@ class TimerState extends EventEmitter {
         }
     }
 
-    setStartTime(start_time) {
+    setStartTimeMs(start_time) {
         if (this.#last_updated === null) {
-            this.#seconds_remaining = start_time
+            this.#ms_remaining = start_time
             this.#changeState();
         }
     }
@@ -46,15 +46,15 @@ class TimerState extends EventEmitter {
     #currentTime() {
         let v;
         if (this.#last_updated === null) {
-            v = this.#seconds_remaining
+            v = this.#ms_remaining
         } else {
-            v = this.#seconds_remaining - Math.round((new Date() - this.#last_updated) / 1000)
+            v = this.#ms_remaining - (new Date() - this.#last_updated)
         }
         return v >= 0 ? v : 0;
     }
 
     #setTime(newTime, metadata = null) {
-        this.#seconds_remaining = newTime
+        this.#ms_remaining = newTime
         if (this.#last_updated !== null) this.#last_updated = new Date()
         this.#changeState(metadata);
     }
@@ -62,7 +62,7 @@ class TimerState extends EventEmitter {
     getState() {
         return {
             last_updated: this.#last_updated,
-            seconds_remaining: this.#seconds_remaining,
+            ms_remaining: this.#ms_remaining,
             running: this.#running
         }
     }
@@ -71,7 +71,7 @@ class TimerState extends EventEmitter {
         deleteJsonFile(STATEFILE_NAME);
         this.#running = false
         this.#last_updated = null
-        this.#seconds_remaining = Number(getSubSettings().startingTime);
+        this.#ms_remaining = Number(getSubSettings().startingTime) * 1000;
         this.#changeState();
     }
 
@@ -84,15 +84,15 @@ class TimerState extends EventEmitter {
     modify(f, metadata = null) {
         this.#setTime(f(this.#currentTime()), metadata)
 
-        return this.#seconds_remaining
+        return this.#ms_remaining
     }
 
     addSeconds(secondsToAdd, metadata = null) {
-        return this.modify((seconds) => seconds + secondsToAdd, metadata)
+        return this.modify((ms) => ms + secondsToAdd * 1000, metadata)
     }
 
     setSeconds(newSeconds, metadata = null) {
-        return this.modify((seconds) => newSeconds, metadata)
+        return this.modify((ms) => newSeconds * 1000, metadata)
     }
 }
 
@@ -101,7 +101,7 @@ let timer;
 if (timerState === null) {
     timer = new TimerState(Number(getSubSettings().startingTime))
 } else {
-    timer = new TimerState(timerState["seconds_remaining"], timerState["running"], new Date(timerState["last_updated"]))
+    timer = new TimerState(timerState["seconds_remaining"] ? timerState["seconds_remaining"] * 1000 : timerState["ms_remaining"], timerState["running"], new Date(timerState["last_updated"]))
 }
 
 module.exports = { timer }
