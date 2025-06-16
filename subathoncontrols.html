@@ -8,6 +8,8 @@
             <button onclick="pauseTimer()">Pause Timer</button>
             <br>
             <button onclick="clearTimer()">Clear Saved Time</button>
+            <br>
+            <button onclick="skipAnimation()">Skip Animation</button>
         </div>
         <div class="column">
             <input type="number" id="multiplier" placeholder="Multiplier (e.g., 2)" min="1">
@@ -39,6 +41,10 @@
             window.electronAPI.clearTimer();
         }
 
+        function skipAnimation() {
+            window.electronAPI.skipAnimation();
+        }
+
        function startMultiplier() {
             window.electronAPI.startMultiplier(document.getElementById("multiplier").value);
        }
@@ -52,7 +58,7 @@
        }
 
        function removeTime() {
-            window.electronAPI.removeTime(-document.getElementById("timeAdjustment").value)
+            window.electronAPI.addTime(-document.getElementById("timeAdjustment").value)
        }
     </script>
 </body>

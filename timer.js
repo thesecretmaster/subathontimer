@@ -2,15 +2,10 @@ const { ipcRenderer } = require('electron');
 
 let timerElement;
 let remainingSeconds = 0;
-var multiplier = 0;
-let interval = null;
-let running = false;
 let adjustmentInterval = null;
-let displayQueue = []; // Queue for handling each `add-time` event individually
 let processingAddition = false; // To track if an addition is being processed
 let last_keepalive = new Date();
-
-let acceptTime = true; // Allows time to be added to the timer
+let skipAnimation = false;
 
 function updateKeepaliveIndicator() {
     if (new Date() - last_keepalive > 30 * 1000) {
@@ -31,99 +26,63 @@ ipcRenderer.on('ws-keepalive', (event, keepalive_ts) => {
     updateKeepaliveIndicator()
 })
 
-ipcRenderer.on('add-time', (event, secondsToAdd, subSettings, isSub) => {
+const stateQueue = [];
+let currentState = null;
 
-    if (!acceptTime)
-        return;
+ipcRenderer.on('update-timer', (event, newState, metadata) => {
+    stateQueue.push([newState, metadata])
+    processStateQueue()
+})
 
-    var isFromControl = false;
-
-    if (subSettings === null) isFromControl = true;
-    var rand = Math.random();
-    var multi = multiplier;
-    let displayColor = "#90EE90";
-    let timerColor = "";
-
-    if (!isFromControl && isSub) {
-        if (rand <= subSettings.oddsForMultiplier) {
-            multi += Number(subSettings.amountForMultiplier);
-            displayColor = "yellow";
-            timerColor = "yellow";
-        }
-
-        // Hour addition
-        rand = Math.random();
-        if (rand <= subSettings.randomHourChance) {
-            secondsToAdd = 3600;
-            displayColor = "rainbow";
-            timerColor = "rainbow";
-        }
+function currentSecondsRemaining(state = null) {
+    if (state === null) state = currentState;
+    let v;
+    if (state === null) {
+        return null
+    } else if (state.last_updated === null) {
+        v = state.seconds_remaining
+    } else if (state.running) {
+        v = state.seconds_remaining - Math.round((new Date() - state.last_updated) / 1000)
+    } else {
+        v = state.seconds_remaining
     }
-
-    if(multi === 0)
-    {
-        multi = 1;
-    }
-
-    secondsToAdd = Math.trunc(Number(secondsToAdd * multi));
-    if (secondsToAdd > 0) {
-        displayQueue.push({ secondsToAdd, displayColor, timerColor });
-        processAddTimeQueue();
-    }
-});
-
-ipcRenderer.on('set-start-time', (event, seconds, force) => {
-    if (force) pauseTimer();
-    if (!running) {
-        setTimerTo(Number(seconds));
-    }
-});
-
-ipcRenderer.on('set-time', (event, seconds, display_queue, is_running) => {
-    if (seconds === 0) acceptTime = false
-    if (is_running) startTimer()
-    setTimerTo(Number(seconds));
-    displayQueue = display_queue
-    processAddTimeQueue()
-});
-
-ipcRenderer.on('start-timer', (event) => {
-    acceptTime = true;
-    if (!running) startTimer();
-});
-
-ipcRenderer.on('pause-timer', (event) => {
-    pauseTimer();
-});
-
-ipcRenderer.on('change-multi', (event, value) => {
-    multiplier = value;
-    console.log(multiplier + "in timer");
-});
-
-ipcRenderer.on('apply-theme', (event, themeCssPath) => {
-    let style = document.getElementById("style").href = themeCssPath;
-    console.log("theme applied");
-});
-
-function setTimerTo(seconds) {
-    remainingSeconds = seconds;
-    if (!processingAddition) storeTime();
-    timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
+    return v >= 0 ? v : 0
 }
 
-function processAddTimeQueue() {
-    if (processingAddition || displayQueue.length === 0 || !acceptTime) return;
+function processStateQueue() {
+    if (processingAddition || stateQueue.length === 0) return;
 
-    const { secondsToAdd, displayColor, timerColor } = displayQueue.shift();
+    const [newState, metadata] = stateQueue.shift();
+    console.log("Processing state queue element", newState, metadata)
     processingAddition = true;
 
-    const displayElement = document.getElementById("timeAdditionDisplay");
-    const newRemainingSeconds = remainingSeconds + secondsToAdd;
+    if (currentState === null) {
+        currentState = newState
+        timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+        processingAddition = false;
+        return
+    }
 
-    const formattedTime = formatTime(secondsToAdd);
-    displayElement.innerText = `+${formattedTime}`;
-    applyColorEffects(displayElement, displayColor);
+    const displayElement = document.getElementById("timeAdditionDisplay");
+
+    let displayColor = "#90EE90";
+    let timerColor = "";
+    if (metadata) {
+        if (metadata.randomMulti) {
+            displayColor = "yellow"
+            timerColor = "yellow"
+        }
+        if (metadata.randomHour) {
+            displayColor = "rainbow"
+            timerColor = "rainbow"
+        }
+
+        if (metadata.secondsAdded) {
+            const formattedTime = formatTime(metadata.secondsAdded);
+            displayElement.innerText = `+${formattedTime}`;
+            applyColorEffects(displayElement, displayColor);
+        }
+    }
 
     applyTimerColor(timerColor);
 
@@ -131,10 +90,20 @@ function processAddTimeQueue() {
     displayElement.style.opacity = "1";
 
     adjustmentInterval = setInterval(() => {
-        if (remainingSeconds < newRemainingSeconds) {
-            remainingSeconds++;
-            timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
+        if (skipAnimation) {
+            currentState = newState;
+            skipAnimation = false
+        }
+        const currentSeconds = currentSecondsRemaining();
+        const newSeconds = currentSecondsRemaining(newState);
+        if (currentSeconds > newSeconds) {
+            currentState.seconds_remaining -= 1;
+            timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+        } else if (currentSeconds < newSeconds) {
+            currentState.seconds_remaining += 1;
+            timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
         } else {
+            currentState = newState
             clearInterval(adjustmentInterval);
             adjustmentInterval = null;
 
@@ -144,42 +113,31 @@ function processAddTimeQueue() {
             setTimeout(() => {
                 displayElement.style.display = "none";
                 processingAddition = false;
-                storeTime();
-                processAddTimeQueue();
+                processStateQueue();
             }, 500);
         }
     }, 1);
 }
 
-function storeTime() {
-    ipcRenderer.send('store-time', remainingSeconds, displayQueue, running)
-}
+ipcRenderer.on('skip-animation', (event) => {
+    skipAnimation = true;
+})
 
-function startTimer() {
-    if (interval) clearInterval(interval);
-    running = true;
-    storeTime();
-    interval = setInterval(() => {
-        if (remainingSeconds > 0) {
-            remainingSeconds -= 1;
-            timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
-        } else {
-            clearInterval(interval);
-            running = false;
-            storeTime();
-            acceptTime = false;
-        }
-    }, 1000);
-}
+ipcRenderer.on('apply-theme', (event, themeCssPath) => {
+    let style = document.getElementById("style").href = themeCssPath;
+    console.log("theme applied");
+});
 
-function pauseTimer() {
-    if (interval) {
-        clearInterval(interval);
-        interval = null;
-        running = false;
-        storeTime();
+setInterval(() => {
+    if (processingAddition) return
+    const remainingSeconds = currentSecondsRemaining()
+    if (remainingSeconds === null) {
+        timerElement.textContent = "N/A"
+        return
     }
-}
+    if (remainingSeconds > 0) remainingSeconds === 0
+    timerElement.textContent = convertSecondsToHMS(remainingSeconds);
+}, 500)
 
 function convertSecondsToHMS(seconds) {
     const hours = Math.floor(seconds / (60 * 60));

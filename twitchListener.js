@@ -1,8 +1,8 @@
 const WebSocket = require('ws');
 const { apiRequest } = require('./twitch');
-const { getSubSettings, createLogStream } = require('./util');
-const fs = require('fs');
+const { createLogStream } = require('./util');
 const { dialog } = require('electron');
+const { subathon_state } = require('./subathonState');
 
 let twitchConnection;
 
@@ -59,52 +59,24 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
             }
 
             if (message.metadata?.message_type === 'notification') {
-                const settings = getSubSettings();
                 const event = message.payload.event;
                 if (message.metadata.subscription_type === 'channel.subscribe') {
-                    switch (event.tier) {
-                        case '1000':
-                            mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
-                            break;
-                        case '2000':
-                            mainWindow.webContents.send('add-time', settings.tier2Increment, settings, true);
-                            break;
-                        case '3000':
-                            mainWindow.webContents.send('add-time', settings.tier3Increment, settings, true);
-                            break;
-                        default:
-                            console.log('Default subscription tier applied');
-                            mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
-                            break;
-                    }
+                    subathon_state.addSub(event.tier)
                 }
                 if (message.metadata.subscription_type === 'channel.cheer') {
-
-                    const increment = settings.bitIncrement * (event.bits / 100);
-                    if (event.user_login === 'jakezsr') {
-                        mainWindow.webContents.send('add-time', 10000, settings, true);
-                    } else {
-                        mainWindow.webContents.send('add-time', increment, settings, false);
-                    }
-
+                    subathon_state.addBits(event.bits)
                 }
 
                 if (message.metadata.subscription_type === 'channel.hype_train.begin') {
-                    const multi = 1 + Number(settings.hypeTrainMulti);
-                    console.log("twithcListener hypetrain started " + multi);
-                    mainWindow.webContents.send('change-multi', multi);
+                    subathon_state.setHypeTrainLevel(1)
                 }
 
                 if (message.metadata.subscription_type === 'channel.hype_train.progress') {
-                    const multi = 1 + (message.payload.event.level * Number(settings.hypeTrainMulti));
-                    console.log("twithcListener hypetrain progress " + multi);
-                    mainWindow.webContents.send('change-multi', multi);
+                    subathon_state.setHypeTrainLevel(message.payload.event.level)
                 }
 
                 if (message.metadata.subscription_type === 'channel.hype_train.end') {
-                    const multi = 0;
-                    console.log("twithcListener hypetrain end " + multi);
-                    mainWindow.webContents.send('change-multi', multi);
+                    subathon_state.setHypeTrainLevel(0)
                 }
             }
         } catch (err) {

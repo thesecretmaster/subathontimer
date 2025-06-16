@@ -1,8 +1,8 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('fs');
 const { apiRequest } = require('./twitch');
 const { readJsonFile, getSubSettings, writeJsonFile, createLogStream } = require('./util');
+const { timer } = require('./timerUtils');
 let mainWindow;
 let configWindow;
 let subathonConfigWindow;
@@ -59,14 +59,11 @@ function createWindow() {
 
     mainWindow.loadFile('timer.html');
     mainWindow.once('ready-to-show', () => {
-        try {
-            const timerState = readJsonFile('timerState.json')
-            let remaining_seconds = timerState.remaining_seconds
-            if (timerState.running) remaining_seconds -= Math.round((Date.now() - timerState.updated_at) / 1000) 
-            mainWindow.webContents.send('set-time', Math.max(remaining_seconds, 0), timerState.display_queue, timerState.running);
-        } catch (e) {
-            mainWindow.webContents.send('set-start-time', getSubSettings().startingTime);
-        }
+        mainWindow.webContents.send('update-timer', timer.getState())
+    })
+
+    timer.on('update', (state, metadata) => {
+        mainWindow.webContents.send('update-timer', state, metadata)
     })
 
     mainWindow.webContents.on('context-menu', (e, params) => {
@@ -138,34 +135,28 @@ function createSubathonControlsWindow() {
 }
 
 ipcMain.handle('start-timer', async () => {
-    mainWindow.webContents.send('start-timer');
+    timer.resume()
 });
 
 ipcMain.handle('pause-timer', async () => {
-    mainWindow.webContents.send('pause-timer');
+    timer.pause()
 });
 
-ipcMain.on('start-multi', (event, value) => {
-    console.log("multi started");
-    mainWindow.webContents.send('change-multi', value);
+ipcMain.handle('skip-animation', async () => {
+    mainWindow.webContents.send('skip-animation')
 });
 
 ipcMain.on('add-time', (event, amount) => {
-    mainWindow.webContents.send('add-time', amount, null);
+    timer.addSeconds(Number(amount))
 });
 
 ipcMain.on('remove-time', (event, amount) => {
-    mainWindow.webContents.send('add-time', amount, null);
+    timer.addSeconds(-Number(amount))
 });
 
 ipcMain.handle('clear-stored-time', (event) => {
-    fs.unlinkSync('timerState.json')
-    mainWindow.webContents.send('set-start-time', getSubSettings().startingTime, true);
+    timer.reset()
 })
-
-ipcMain.on('store-time', (event, remaining_seconds, display_queue, running) => {
-    writeJsonFile('timerState.json', {remaining_seconds, display_queue, updated_at: Date.now(), running});
-});
 
 let oauthServerRunning = false
 const twitchRedirectUri = 'http://localhost:8008/oauth'
@@ -236,8 +227,7 @@ ipcMain.on('save-sub-settings', (event, settings) => {
     writeJsonFile('subSettings.json', settings);
     console.log('Received credentials:', settings);
     if (settings.startingTime) {
-        console.log(settings.startingTime);
-        mainWindow.webContents.send('set-start-time', settings.startingTime);
+        timer.setStartTime(settings.startingTime)
     }
     if (configWindow) {
         configWindow.close();

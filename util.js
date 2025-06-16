@@ -7,6 +7,11 @@ function writeJsonFile(filename, data) {
     fs.writeFileSync(full_path, JSON.stringify(data, null, 2));
 }
 
+function deleteJsonFile(filename) {
+    const full_path = path.join(app.getPath('userData'), filename)
+    fs.unlinkSync(full_path);
+}
+
 function readJsonFile(filename, fallback) {
     const full_path = path.join(app.getPath('userData'), filename)
     try {
@@ -48,4 +53,4 @@ function getSubSettings() {
     };
 }
 
-module.exports = { readJsonFile, getSubSettings, writeJsonFile, createLogStream };
+module.exports = { readJsonFile, getSubSettings, writeJsonFile, createLogStream, deleteJsonFile };
