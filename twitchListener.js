@@ -85,8 +85,8 @@ async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://event
         }
     });
 
-    ws.on('close', () => {
-        console.log('Disconnected from Twitch EventSub WebSocket.');
+    ws.on('close', (code, data) => {
+        console.log('Disconnected from Twitch EventSub WebSocket.', code, data.toString());
         keepaliveLoop.close()
         pingLoop.close()
     });
