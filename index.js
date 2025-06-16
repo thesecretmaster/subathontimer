@@ -3,6 +3,7 @@ const path = require('path');
 const { apiRequest } = require('./twitch');
 const { readJsonFile, getSubSettings, writeJsonFile, createLogStream } = require('./util');
 const { timer } = require('./timerUtils');
+const { TwitchListener } = require('./twitchListener');
 let mainWindow;
 let configWindow;
 let subathonConfigWindow;
@@ -177,7 +178,7 @@ ipcMain.on('save-api-config', (event, data) => {
                 oauthServerRunning = false
                 configWindow.close();
                 disconnectTwitchWS();
-                twitchConnection = attemptTwitchConnect();
+                attemptTwitchConnect();
             } else {
                 res.writeHead(token_res.status);
                 res.end(await token_res.bytes());
@@ -276,7 +277,7 @@ ipcMain.handle('get-api-keys', async () => {
     const config = readJsonFile('apiConfig.json', {});
     if (config.twitchClientId && config.youtubeApiKey && config.clientId) {
         disconnectTwitchWS();
-        twitchConnection = attemptTwitchConnect();
+        attemptTwitchConnect();
     }
     return config;
 });
@@ -362,7 +363,6 @@ app.on('activate', () => {
     }
 });
 function attemptTwitchConnect() {
-    const { startTwitchListener } = require('./twitchListener');
     const { twitchUsername } = readJsonFile('apiConfig.json');
 
     console.log("Attempting connect to Twitch API");
@@ -375,20 +375,17 @@ function attemptTwitchConnect() {
         const broadcasterId = userData.data[0].id;
 
         // Start the Twitch listener
-        startTwitchListener(broadcasterId, mainWindow);
+        if (twitchConnection !== null) twitchConnection.disconnect()
+        twitchConnection = new TwitchListener(broadcasterId, mainWindow);
     })();
 }
 
 function disconnectTwitchWS() {
     console.log("Attempting to disconnect from Twitch WS.");
-    const { disconnectTwitchListener } = require('./twitchListener');
-    if (twitchConnection !== null)
-        var result = disconnectTwitchListener();
-
-    console.log(result);
+    if (twitchConnection !== null) twitchConnection.disconnect()
 }
 
-twitchConnection = attemptTwitchConnect();
+attemptTwitchConnect();
 
 /*
 //STREAMELEMENTS

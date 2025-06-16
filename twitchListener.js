@@ -8,164 +8,186 @@ let twitchConnection;
 
 const logStream = createLogStream('eventsub.log');
 
-async function startTwitchListener(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
-    const ws = new WebSocket(url);
-    let last_keepalive = new Date();
-    twitchConnection = ws;
+class TwitchListener {
+    #disconnected = false;
+    #last_autoreconnect = new Date();
 
-    const pingLoop = setInterval(() => {
-        logStream.write(JSON.stringify({log: true, type: 'ping', time: new Date().toISOString()}));
-        ws.ping()
-    }, 10000)
+    constructor(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
+        this.#start(broadcasterId, mainWindow, url, prev_connection)
+    }
 
-    ws.on('pong', () => {
-        logStream.write(JSON.stringify({log: true, type: 'pong', time: new Date().toISOString()}));
-    })
+    #start(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
+        const ws = new WebSocket(url);
+        let last_keepalive = new Date();
+        twitchConnection = ws;
 
-    let keepaliveLoop;
-    keepaliveLoop = setInterval(() => {
-        if (new Date() - last_keepalive > 120 * 1000) {
-            ws.terminate()
-            startTwitchListener(broadcasterId, mainWindow)
+        const pingLoop = setInterval(() => {
+            logStream.write(JSON.stringify({log: true, type: 'ping', time: new Date().toISOString()}));
+            ws.ping()
+        }, 10000)
+
+        ws.on('pong', () => {
+            logStream.write(JSON.stringify({log: true, type: 'pong', time: new Date().toISOString()}));
+        })
+
+        let keepaliveLoop;
+        keepaliveLoop = setInterval(() => {
+            if (new Date() - last_keepalive > 120 * 1000) {
+                ws.terminate()
+                this.#disconnected = true;
+                this.#start(broadcasterId, mainWindow)
+                keepaliveLoop.close()
+                pingLoop.close()
+            }
+        }, 1000)
+
+        ws.on('open', () => {
+            console.log('Connected to Twitch EventSub WebSocket.');
+        });
+
+        ws.on('message', async (data) => {
+            try {
+                logStream.write(data);
+                const message = JSON.parse(data);
+                console.log(JSON.stringify(message));
+                last_keepalive = new Date();
+                mainWindow.webContents.send('ws-keepalive', last_keepalive)
+
+                if (message.metadata?.message_type === 'session_welcome') {
+                    console.log('Twitch EventSub session established:', JSON.stringify(message));
+                    if (prev_connection !== null) {
+                        prev_connection.close();
+                    } else {
+                        await this.#subscribeToEvents(broadcasterId, message.payload.session.id);
+                    }
+                }
+
+                if (message.metadata?.message_type === 'session_reconnect') {
+                    console.log("Got reconnect request")
+                    this.#disconnected = true;
+                    this.#start(broadcasterId, mainWindow, message.payload.session.reconnect_url, ws)
+                }
+
+                if (message.metadata?.message_type === 'notification') {
+                    const event = message.payload.event;
+                    if (message.metadata.subscription_type === 'channel.subscribe') {
+                        subathon_state.addSub(event.tier)
+                    }
+                    if (message.metadata.subscription_type === 'channel.cheer') {
+                        subathon_state.addBits(event.bits)
+                    }
+
+                    if (message.metadata.subscription_type === 'channel.hype_train.begin') {
+                        subathon_state.setHypeTrainLevel(1)
+                    }
+
+                    if (message.metadata.subscription_type === 'channel.hype_train.progress') {
+                        subathon_state.setHypeTrainLevel(message.payload.event.level)
+                    }
+
+                    if (message.metadata.subscription_type === 'channel.hype_train.end') {
+                        subathon_state.setHypeTrainLevel(0)
+                    }
+                }
+            } catch (err) {
+                dialog.showMessageBox({title: "WebSocket listener error", message: `${err.toString()}\n${err.stack}`, type: "error"})
+                console.error(err, err.stack)
+            }
+        });
+
+        ws.on('close', (code, data) => {
+            console.log('Disconnected from Twitch EventSub WebSocket.', code, data.toString());
             keepaliveLoop.close()
             pingLoop.close()
-        }
-    }, 1000)
-
-    ws.on('open', () => {
-        console.log('Connected to Twitch EventSub WebSocket.');
-    });
-
-    ws.on('message', async (data) => {
-        try {
-            logStream.write(data);
-            const message = JSON.parse(data);
-            console.log(JSON.stringify(message));
-            last_keepalive = new Date();
-            mainWindow.webContents.send('ws-keepalive', last_keepalive)
-
-            if (message.metadata?.message_type === 'session_welcome') {
-                console.log('Twitch EventSub session established:', JSON.stringify(message));
-                if (prev_connection !== null) {
-                    prev_connection.close();
+            if (!this.#disconnected) {
+                const wait_seconds = Math.max(60 - ((new Date() - this.#last_autoreconnect) / 1000), 0)
+                console.log(`Disconnect was not triggered intentionally. Restarting in ${wait_seconds} seconds}`)
+                if (wait_seconds > 0) {
+                    setTimeout(() => {
+                        this.#last_autoreconnect = new Date()
+                        this.#start(broadcasterId, mainWindow)
+                    }, min_reconnect_wait * 1000)
                 } else {
-                    await subscribeToEvents(broadcasterId, message.payload.session.id);
+                    this.#last_autoreconnect = new Date()
+                    this.#start(broadcasterId, mainWindow)
                 }
             }
+        });
 
-            if (message.metadata?.message_type === 'session_reconnect') {
-                console.log("Got reconnect request")
-                startTwitchListener(broadcasterId, mainWindow, message.payload.session.reconnect_url, ws)
+        return ws;
+    }
+
+
+    async #subscribeToEvents(broadcasterId, sessionId) {
+        const subscriptions = [
+            {
+                type: 'channel.subscribe',
+                version: '1',
+                condition: { broadcaster_user_id: broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.cheer',
+                version: '1',
+                condition: { broadcaster_user_id: broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.hype_train.begin',
+                version: '1',
+                condition: { broadcaster_user_id: broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.hype_train.progress',
+                version: '1',
+                condition: { broadcaster_user_id: broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.hype_train.end',
+                version: '1',
+                condition: { broadcaster_user_id: broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            /*{
+                type: 'channel.hype_train.begin',
+                version: '1',
+                condition: {broadcaster_user_id: broadcasterId},
+                transport: {method: 'websocket', sessionId: sessionId}
+            },
+            {
+                type: 'channel.hype_train.end',
+                version: '1',
+                condition: {broadcaster_user_id: broadcasterId},
+                transport: {method: 'websocket', sessionId: sessionId}
+            }*/
+        ];
+
+        for (const sub of subscriptions) {
+            const response = await apiRequest('https://api.twitch.tv/helix/eventsub/subscriptions', { body: JSON.stringify(sub) })
+
+            if (response.ok) {
+                console.log(`Successfully subscribed to ${sub.type}`);
+            } else {
+                const error = await response.json();
+                console.error(`Failed to subscribe to ${sub.type}:`, error);
             }
-
-            if (message.metadata?.message_type === 'notification') {
-                const event = message.payload.event;
-                if (message.metadata.subscription_type === 'channel.subscribe') {
-                    subathon_state.addSub(event.tier)
-                }
-                if (message.metadata.subscription_type === 'channel.cheer') {
-                    subathon_state.addBits(event.bits)
-                }
-
-                if (message.metadata.subscription_type === 'channel.hype_train.begin') {
-                    subathon_state.setHypeTrainLevel(1)
-                }
-
-                if (message.metadata.subscription_type === 'channel.hype_train.progress') {
-                    subathon_state.setHypeTrainLevel(message.payload.event.level)
-                }
-
-                if (message.metadata.subscription_type === 'channel.hype_train.end') {
-                    subathon_state.setHypeTrainLevel(0)
-                }
-            }
-        } catch (err) {
-            dialog.showMessageBox({title: "WebSocket listener error", message: `${err.toString()}\n${err.stack}`, type: "error"})
-            console.error(err, err.stack)
         }
-    });
+    }
 
-    ws.on('close', (code, data) => {
-        console.log('Disconnected from Twitch EventSub WebSocket.', code, data.toString());
-        keepaliveLoop.close()
-        pingLoop.close()
-    });
-
-    return ws;
-}
-
-
-async function subscribeToEvents(broadcasterId, sessionId) {
-    const subscriptions = [
-        {
-            type: 'channel.subscribe',
-            version: '1',
-            condition: { broadcaster_user_id: broadcasterId },
-            transport: { method: 'websocket', session_id: sessionId }
-        },
-        {
-            type: 'channel.cheer',
-            version: '1',
-            condition: { broadcaster_user_id: broadcasterId },
-            transport: { method: 'websocket', session_id: sessionId }
-        },
-        {
-            type: 'channel.hype_train.begin',
-            version: '1',
-            condition: { broadcaster_user_id: broadcasterId },
-            transport: { method: 'websocket', session_id: sessionId }
-        },
-        {
-            type: 'channel.hype_train.progress',
-            version: '1',
-            condition: { broadcaster_user_id: broadcasterId },
-            transport: { method: 'websocket', session_id: sessionId }
-        },
-        {
-            type: 'channel.hype_train.end',
-            version: '1',
-            condition: { broadcaster_user_id: broadcasterId },
-            transport: { method: 'websocket', session_id: sessionId }
-        },
-        /*{
-            type: 'channel.hype_train.begin',
-            version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', sessionId: sessionId}
-        },
-        {
-            type: 'channel.hype_train.end',
-            version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', sessionId: sessionId}
-        }*/
-    ];
-
-    for (const sub of subscriptions) {
-        const response = await apiRequest('https://api.twitch.tv/helix/eventsub/subscriptions', { body: JSON.stringify(sub) })
-
-        if (response.ok) {
-            console.log(`Successfully subscribed to ${sub.type}`);
+    disconnect() {
+        console.log("Attempting to disconnect from Twitch WS.");
+        if (twitchConnection && twitchConnection.readyState === WebSocket.OPEN) {
+            this.#disconnected = true;
+            twitchConnection.close();
+            console.log("Disconnected from Twitch WebSocket.");
+        } else if (twitchConnection) {
+            console.log("WebSocket is not open or already closed. Current state:", twitchConnection.readyState);
         } else {
-            const error = await response.json();
-            console.error(`Failed to subscribe to ${sub.type}:`, error);
+            console.log("No active Twitch WebSocket connection to disconnect.");
         }
     }
 }
 
-
-function disconnectTwitchListener() {
-    console.log("Attempting to disconnect from Twitch WS.");
-    if (twitchConnection && twitchConnection.readyState === WebSocket.OPEN) {
-        twitchConnection.close();
-        console.log("Disconnected from Twitch WebSocket.");
-    } else if (twitchConnection) {
-        console.log("WebSocket is not open or already closed. Current state:", twitchConnection.readyState);
-    } else {
-        console.log("No active Twitch WebSocket connection to disconnect.");
-    }
-}
-
-
-
-module.exports = { startTwitchListener, disconnectTwitchListener };
+module.exports = { TwitchListener };
