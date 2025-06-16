@@ -376,7 +376,9 @@ function attemptTwitchConnect() {
 
         // Start the Twitch listener
         if (twitchConnection !== null) twitchConnection.disconnect()
-        twitchConnection = new TwitchListener(broadcasterId, mainWindow);
+        twitchConnection = new TwitchListener(broadcasterId);
+        twitchConnection.on('ws-keepalive', (ts) => mainWindow.webContents.send('ws-keepalive', ts))
+        twitchConnection.on('ws-setup-complete', () => mainWindow.webContents.send('ws-setup-complete'))
     })();
 }
 

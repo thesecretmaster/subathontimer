@@ -1,25 +1,28 @@
 const WebSocket = require('ws');
+const EventEmitter = require('node:events');
 const { apiRequest } = require('./twitch');
 const { createLogStream } = require('./util');
 const { dialog } = require('electron');
 const { subathon_state } = require('./subathonState');
 
-let twitchConnection;
-
 const logStream = createLogStream('eventsub.log');
 
-class TwitchListener {
+class TwitchListener extends EventEmitter {
     #disconnected = false;
     #last_autoreconnect = new Date();
+    #broadcasterId;
+    #twitchConnection;
 
-    constructor(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
-        this.#start(broadcasterId, mainWindow, url, prev_connection)
+    constructor(broadcasterId, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
+        super();
+        this.#broadcasterId = broadcasterId
+        this.#start(url, prev_connection)
     }
 
-    #start(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
+    #start(url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
         const ws = new WebSocket(url);
         let last_keepalive = null;
-        twitchConnection = ws;
+        this.#twitchConnection = ws;
 
         const pingLoop = setInterval(() => {
             logStream.write(JSON.stringify({log: true, type: 'ping', time: new Date().toISOString()}));
@@ -35,7 +38,7 @@ class TwitchListener {
             if (new Date() - last_keepalive > 120 * 1000) {
                 ws.terminate()
                 this.#disconnected = true;
-                this.#start(broadcasterId, mainWindow)
+                this.#start()
                 keepaliveLoop.close()
                 pingLoop.close()
             }
@@ -56,19 +59,19 @@ class TwitchListener {
                     if (prev_connection !== null) {
                         prev_connection.close();
                     } else {
-                        if (await this.#subscribeToEvents(broadcasterId, message.payload.session.id)) {
-                            mainWindow.webContents.send('ws-setup-complete')
+                        if (await this.#subscribeToEvents(message.payload.session.id)) {
+                            this.emit('ws-setup-complete')
                         }
                     }
                 }
 
                 last_keepalive = new Date();
-                mainWindow.webContents.send('ws-keepalive', last_keepalive)
+                this.emit('ws-keepalive', last_keepalive)
 
                 if (message.metadata?.message_type === 'session_reconnect') {
                     console.log("Got reconnect request")
                     this.#disconnected = true;
-                    this.#start(broadcasterId, mainWindow, message.payload.session.reconnect_url, ws)
+                    this.#start(message.payload.session.reconnect_url, ws)
                 }
 
                 if (message.metadata?.message_type === 'notification') {
@@ -108,11 +111,11 @@ class TwitchListener {
                 if (wait_seconds > 0) {
                     setTimeout(() => {
                         this.#last_autoreconnect = new Date()
-                        this.#start(broadcasterId, mainWindow)
+                        this.#start()
                     }, min_reconnect_wait * 1000)
                 } else {
                     this.#last_autoreconnect = new Date()
-                    this.#start(broadcasterId, mainWindow)
+                    this.#start()
                 }
             }
         });
@@ -121,48 +124,48 @@ class TwitchListener {
     }
 
 
-    async #subscribeToEvents(broadcasterId, sessionId) {
+    async #subscribeToEvents(sessionId) {
         const subscriptions = [
             {
                 type: 'channel.subscribe',
                 version: '1',
-                condition: { broadcaster_user_id: broadcasterId },
+                condition: { broadcaster_user_id: this.#broadcasterId },
                 transport: { method: 'websocket', session_id: sessionId }
             },
             {
                 type: 'channel.cheer',
                 version: '1',
-                condition: { broadcaster_user_id: broadcasterId },
+                condition: { broadcaster_user_id: this.#broadcasterId },
                 transport: { method: 'websocket', session_id: sessionId }
             },
             {
                 type: 'channel.hype_train.begin',
                 version: '1',
-                condition: { broadcaster_user_id: broadcasterId },
+                condition: { broadcaster_user_id: this.#broadcasterId },
                 transport: { method: 'websocket', session_id: sessionId }
             },
             {
                 type: 'channel.hype_train.progress',
                 version: '1',
-                condition: { broadcaster_user_id: broadcasterId },
+                condition: { broadcaster_user_id: this.#broadcasterId },
                 transport: { method: 'websocket', session_id: sessionId }
             },
             {
                 type: 'channel.hype_train.end',
                 version: '1',
-                condition: { broadcaster_user_id: broadcasterId },
+                condition: { broadcaster_user_id: this.#broadcasterId },
                 transport: { method: 'websocket', session_id: sessionId }
             },
             /*{
                 type: 'channel.hype_train.begin',
                 version: '1',
-                condition: {broadcaster_user_id: broadcasterId},
+                condition: {broadcaster_user_id: this.#broadcasterId},
                 transport: {method: 'websocket', sessionId: sessionId}
             },
             {
                 type: 'channel.hype_train.end',
                 version: '1',
-                condition: {broadcaster_user_id: broadcasterId},
+                condition: {broadcaster_user_id: this.#broadcasterId},
                 transport: {method: 'websocket', sessionId: sessionId}
             }*/
         ];
@@ -184,12 +187,12 @@ class TwitchListener {
 
     disconnect() {
         console.log("Attempting to disconnect from Twitch WS.");
-        if (twitchConnection && twitchConnection.readyState === WebSocket.OPEN) {
+        if (this.#twitchConnection && this.#twitchConnection.readyState === WebSocket.OPEN) {
             this.#disconnected = true;
-            twitchConnection.close();
+            this.#twitchConnection.close();
             console.log("Disconnected from Twitch WebSocket.");
-        } else if (twitchConnection) {
-            console.log("WebSocket is not open or already closed. Current state:", twitchConnection.readyState);
+        } else if (this.#twitchConnection) {
+            console.log("WebSocket is not open or already closed. Current state:", this.#twitchConnection.readyState);
         } else {
             console.log("No active Twitch WebSocket connection to disconnect.");
         }
