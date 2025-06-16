@@ -1,18 +1,38 @@
 <link id="style" rel="stylesheet" href="themes/Default/theme.css">
-<span id="keepaliveWarn">⚠️</span>
+<div id="warnWrap">
+    <span id="keepaliveWarn"></span>
+    <span id="setupIncomplete">⚠️ Setup incomplete</span>
+</div>
 <div id="subTimerDiv">
     <h1 id="subTimer">00:00:00</h1>
 </div>
-<script src="timer.js"></script>
+<script src="timer.js" charset="utf-8"></script>
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
     await window.electronAPI.getSettings();
     });
 </script>
 <style>
-#keepaliveWarn {
+#warnWrap {
+    text-align: right;
     position: absolute;
     top: 5px;
     right: 5px;
+    font-size: 0.8em;
+}
+#setupIncomplete {
+    color: orange;
+}
+#keepaliveWarn {
+    display: none;
+
+    &.warn-loading {
+        display: block;
+        color: red;
+    }
+
+    &.warn-active {
+        display: block;
+    }
 }
 </style>

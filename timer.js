@@ -1,25 +1,40 @@
 const { ipcRenderer } = require('electron');
 
 let timerElement;
-let remainingSeconds = 0;
 let adjustmentInterval = null;
 let processingAddition = false; // To track if an addition is being processed
-let last_keepalive = new Date();
+let last_keepalive = null;
 let skipAnimation = false;
+let wsSetupComplete = false;
 
 function updateKeepaliveIndicator() {
-    if (new Date() - last_keepalive > 30 * 1000) {
-        document.getElementById('keepaliveWarn').style.display = 'block'
-    } else {
-        document.getElementById('keepaliveWarn').style.display = 'none'
+    const warnElement = document.getElementById('keepaliveWarn')
+    const setupElement = document.getElementById('setupIncomplete');
+    warnElement.classList.remove(...warnElement.classList)
+    if (last_keepalive === null) {
+        warnElement.classList.add('warn-loading')
+        warnElement.innerHTML = '🛑 Connection set-up incomplete or failed'
+        setupElement.style.display = 'none'
+    } else if (new Date() - last_keepalive > 30 * 1000) {
+        warnElement.classList.add('warn-active')
+        warnElement.textContent = '⚠️'
+        setupElement.style.display = 'none'
+    } else if (!wsSetupComplete) {
+        setupElement.style.display = 'block'
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     timerElement = document.getElementById("subTimer");
     createAdditionDisplayElement();
+    updateKeepaliveIndicator();
     setInterval(updateKeepaliveIndicator, 1000)
 });
+
+ipcRenderer.on('ws-setup-complete', (event) => {
+    wsSetupComplete = true;
+    updateKeepaliveIndicator()
+})
 
 ipcRenderer.on('ws-keepalive', (event, keepalive_ts) => {
     last_keepalive = keepalive_ts

@@ -18,7 +18,7 @@ class TwitchListener {
 
     #start(broadcasterId, mainWindow, url = 'wss://eventsub.wss.twitch.tv/ws', prev_connection = null) {
         const ws = new WebSocket(url);
-        let last_keepalive = new Date();
+        let last_keepalive = null;
         twitchConnection = ws;
 
         const pingLoop = setInterval(() => {
@@ -50,17 +50,20 @@ class TwitchListener {
                 logStream.write(data);
                 const message = JSON.parse(data);
                 console.log(JSON.stringify(message));
-                last_keepalive = new Date();
-                mainWindow.webContents.send('ws-keepalive', last_keepalive)
 
                 if (message.metadata?.message_type === 'session_welcome') {
                     console.log('Twitch EventSub session established:', JSON.stringify(message));
                     if (prev_connection !== null) {
                         prev_connection.close();
                     } else {
-                        await this.#subscribeToEvents(broadcasterId, message.payload.session.id);
+                        if (await this.#subscribeToEvents(broadcasterId, message.payload.session.id)) {
+                            mainWindow.webContents.send('ws-setup-complete')
+                        }
                     }
                 }
+
+                last_keepalive = new Date();
+                mainWindow.webContents.send('ws-keepalive', last_keepalive)
 
                 if (message.metadata?.message_type === 'session_reconnect') {
                     console.log("Got reconnect request")
@@ -164,16 +167,19 @@ class TwitchListener {
             }*/
         ];
 
+        let any_errors = false;
         for (const sub of subscriptions) {
             const response = await apiRequest('https://api.twitch.tv/helix/eventsub/subscriptions', { body: JSON.stringify(sub) })
 
             if (response.ok) {
                 console.log(`Successfully subscribed to ${sub.type}`);
             } else {
+                any_errors = true;
                 const error = await response.json();
                 console.error(`Failed to subscribe to ${sub.type}:`, error);
             }
         }
+        return !any_errors
     }
 
     disconnect() {
