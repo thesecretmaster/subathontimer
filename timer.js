@@ -52,7 +52,7 @@ function currentSecondsRemaining(state = null) {
 function processStateQueue() {
     if (processingAddition || stateQueue.length === 0) return;
 
-    const [newState, metadata] = stateQueue.shift();
+    let [newState, metadata] = stateQueue.shift();
     console.log("Processing state queue element", newState, metadata)
     processingAddition = true;
 
@@ -91,7 +91,12 @@ function processStateQueue() {
 
     adjustmentInterval = setInterval(() => {
         if (skipAnimation) {
+            while (stateQueue.length > 0) {
+                [newState, metadata] = stateQueue.shift();
+            }
+            console.log("Skipping animation, jumping to", newState);
             currentState = newState;
+            timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
             skipAnimation = false
         }
         const currentSeconds = currentSecondsRemaining();
@@ -113,6 +118,7 @@ function processStateQueue() {
             setTimeout(() => {
                 displayElement.style.display = "none";
                 processingAddition = false;
+                skipAnimation = false
                 processStateQueue();
             }, 500);
         }
@@ -120,7 +126,9 @@ function processStateQueue() {
 }
 
 ipcRenderer.on('skip-animation', (event) => {
-    skipAnimation = true;
+    if (processingAddition) {
+        skipAnimation = true;
+    }
 })
 
 ipcRenderer.on('apply-theme', (event, themeCssPath) => {
