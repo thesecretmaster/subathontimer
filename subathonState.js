@@ -1,12 +1,15 @@
+const { EventEmitter } = require("node:events");
 const { timer } = require("./timerUtils");
 const { getSubSettings } = require("./util");
 
-class SubathonState {
+class SubathonState extends EventEmitter {
     #hypeTrainLevel = 0
+    #multiOverride = null
     #hypeTrainTimeout = null;
 
     setHypeTrainLevel(lvl) {
         this.#hypeTrainLevel = lvl
+        this.#emitMulti()
         console.log("Updating hype train level to:", lvl)
         if (this.#hypeTrainTimeout !== null) {
             this.#hypeTrainTimeout.close()
@@ -15,13 +18,40 @@ class SubathonState {
             this.#hypeTrainTimeout = setTimeout(() => {
                 console.log("Hype train hasn't been updated in 10 minutes. Resetting.")
                 this.#hypeTrainLevel = 0
+                this.#emitMulti()
             }, 60 * 10 * 1000 /* 10 minutes */)
         }
     }
 
-    #base_multiplier() {
+    getMultiplier() {
+        return {multiplier: this.#base_multiplier(), hype_train: this.#hypeTrainMulti(), override: this.#multiOverride}
+    }
+
+    #emitMulti() {
+        this.emit('change-multiplier', this.getMultiplier())
+    }
+
+    overrideMulti(v) {
+        this.#multiOverride = v
+        this.#emitMulti()
+    }
+
+    clearOverrideMulti() {
+        this.#multiOverride = null
+        this.#emitMulti()
+    }
+
+    #hypeTrainMulti() {
         const settings = getSubSettings()
         return 1 + this.#hypeTrainLevel * Number(settings.hypeTrainMulti)
+    }
+
+    #base_multiplier() {
+        if (this.#multiOverride === null) {
+            return this.#hypeTrainMulti()
+        } else {
+            return this.#multiOverride
+        }
     }
 
     // tier is from the twitch API: https://dev.twitch.tv/docs/eventsub/eventsub-reference/#channel-subscribe-event

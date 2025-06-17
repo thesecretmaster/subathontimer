@@ -5,6 +5,7 @@ const { readJsonFile, getSubSettings, writeJsonFile, createLogStream, createFile
 const { timer } = require('./timerUtils');
 const { TwitchListener } = require('./twitchListener');
 const { timerLogWrite, logsWindow } = require('./timerLog');
+const { subathon_state } = require('./subathonState');
 let mainWindow;
 let twitchConnection = null;
 
@@ -121,8 +122,23 @@ const subathonControlsWindow = new SingletonWindow(() => {
             preload: path.join(__dirname, 'preloads/preload-subcontrols.js')
         }
     });
+    win.once('ready-to-show', () => {
+        win.webContents.send('change-multiplier', subathon_state.getMultiplier())
+    })
     win.loadFile('subathoncontrols.html');
     return win
+})
+
+subathon_state.on('change-multiplier', (v) => {
+    subathonControlsWindow.use((win) => win.webContents.send('change-multiplier', v))
+})
+
+ipcMain.on('start-multi', (event, multi) => {
+    subathon_state.overrideMulti(multi)
+})
+
+ipcMain.on('clear-multi', () => {
+    subathon_state.clearOverrideMulti()
 })
 
 ipcMain.handle('start-timer', () => {

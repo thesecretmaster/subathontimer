@@ -1,3 +1,16 @@
+electronAPI.onChangeMultiplier((multi) => {
+    const hypeE = document.getElementById('hypeMulti');
+    const overrideE = document.getElementById('overrideMulti');
+    hypeE.textContent = `(${multi.hype_train}x)`
+    if (multi.override === null) {
+        hypeE.style.textDecoration = ''
+        overrideE.textContent = ''
+    } else {
+        hypeE.style.textDecoration = 'line-through'
+        overrideE.textContent = `(${multi.multiplier}x)`
+    }
+});
+
 function startTimer() {
     window.electronAPI.startTimer();
 }
@@ -20,7 +33,7 @@ function startMultiplier() {
 }
 
 function stopMultiplier() {
-    window.electronAPI.startMultiplier(1);
+    window.electronAPI.clearMultiplier();
 }
 
 function parseHhMmSs(v) {
