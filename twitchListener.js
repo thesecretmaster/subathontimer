@@ -4,7 +4,9 @@ const { apiRequest } = require('./twitch');
 const { createLogStream } = require('./util');
 const { dialog } = require('electron');
 const { subathon_state } = require('./subathonState');
+const { timerLogWrite } = require('./timerLog');
 
+let connection_good = true;
 const logStream = createLogStream('eventsub.log');
 const EVENTSUB_SOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws'
 const EVENTSUB_SUBSCRIBE_URL = 'https://api.twitch.tv/helix/eventsub/subscriptions'
@@ -40,6 +42,17 @@ class TwitchListener extends EventEmitter {
 
         let keepaliveLoop;
         keepaliveLoop = setInterval(() => {
+            if (new Date() - last_keepalive > 30 * 1000) {
+                if (connection_good) {
+                    timerLogWrite({logType: 'connection', state: 'bad', timestamp: new Date()});
+                    connection_good = false;
+                }
+            } else {
+                if (!connection_good) {
+                    timerLogWrite({logType: 'connection', state: 'good', timestamp: new Date()});
+                    connection_good = true;
+                }
+            }
             if (new Date() - last_keepalive > 120 * 1000) {
                 ws.terminate()
                 this.#disconnected = true;

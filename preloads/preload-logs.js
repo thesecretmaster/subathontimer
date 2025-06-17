@@ -53,10 +53,10 @@ function addLog(log) {
     let suffix = null;
     if (log.logData.metadata !== null) {
       if (log.logData.metadata.type === 'sub') {
-        suffix = `T${log.logData.metadata.event.tier / 1000} sub, ${log.logData.metadata.multiplier} multi`
+        suffix = `T${log.logData.metadata.event.tier / 1000} sub, ${log.logData.metadata.multiplier}x multiplier`
         if (log.logData.metadata.randomHour) suffix = `${suffix}, GAY`
       } else if (log.logData.metadata.type === 'bits') {
-        suffix = `${log.logData.metadata.event.bits} bits, ${log.logData.metadata.multiplier} multi`
+        suffix = `${log.logData.metadata.event.bits} bits, ${log.logData.metadata.multiplier}x multiplier`
       }
     }
     if (cts !== null) {
@@ -66,9 +66,25 @@ function addLog(log) {
     } else {
       row.textContent = JSON.stringify(log)
     }
+    prev_log = log
+  } else if (log.logType === 'process') {
+    if (log.event === 'start') {
+      row.textContent = `${new Date(log.timestamp).toLocaleString()}: Program started`
+    } else if (log.event === 'exit') {
+      row.textContent = `${new Date(log.timestamp).toLocaleString()}: Program stopped`
+    } else {
+      row.textContent = JSON.stringify(log)
+    }
+  } else if (log.logType === 'connection') {
+    if (log.state === 'bad') {
+      row.textContent = `${new Date(log.timestamp).toLocaleString()}: Potential connection problems began`
+    } else if (log.state === 'good') {
+      row.textContent = `${new Date(log.timestamp).toLocaleString()}: Connection problems resolved`
+    } else {
+      row.textContent = JSON.stringify(log)
+    }
   } else {
     row.textContent = JSON.stringify(log)
   }
   wrap.prepend(row)
-  prev_log = log
 }

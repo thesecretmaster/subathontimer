@@ -2,6 +2,37 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app } = require('electron');
 
+class SingletonWindow {
+    #win = null;
+    #create_window;
+
+    constructor(createWindow) {
+        this.#create_window = createWindow;
+    }
+
+    close() {
+        if (this.#win !== null) {
+            this.#win.close();
+        }
+    }
+
+    create(...args) {
+        if (this.#win !== null) {
+            this.#win.focus()
+        } else {
+            this.#win = this.#create_window(...args);
+            this.#win.on('closed', () => {
+                this.#win = null
+            });
+        }
+    }
+
+    use(f) {
+        if (this.#win) f(this.#win)
+    }
+}
+
+
 function writeJsonFile(filename, data) {
     const full_path = path.join(app.getPath('userData'), filename)
     fs.writeFileSync(full_path, JSON.stringify(data, null, 2));
@@ -42,10 +73,10 @@ function readJsonFile(filename, fallback) {
     }
 }
 
-function createStream(path) {
+function createStream(path, handle_close = true) {
     const stream = fs.createWriteStream(path, { flags: 'a' });
     // Ensure the log file is properly closed on exit
-    process.on('exit', () => stream.end());
+    if (handle_close) process.on('exit', () => stream.end());
     return stream
 }
 
@@ -53,8 +84,8 @@ function createLogStream(filename) {
     return createStream(path.join(app.getPath('logs'), filename))
 }
 
-function createFileStream(filename) {
-    return createStream(path.join(app.getPath('userData'), filename))
+function createFileStream(filename, handle_close = true) {
+    return createStream(path.join(app.getPath('userData'), filename), handle_close)
 }
 
 const SUB_SETTINGS_DEFAULT = {
@@ -76,4 +107,4 @@ function getSubSettings() {
     };
 }
 
-module.exports = { readJsonFile, getSubSettings, writeJsonFile, createLogStream, deleteJsonFile, createFileStream, readFile };
+module.exports = { readJsonFile, getSubSettings, writeJsonFile, createLogStream, deleteJsonFile, createFileStream, readFile, SingletonWindow };
