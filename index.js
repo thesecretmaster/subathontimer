@@ -154,11 +154,11 @@ ipcMain.handle('skip-animation', () => {
 });
 
 ipcMain.on('add-time', (event, amount) => {
-    timer.addSeconds(Number(amount))
+    timer.addSeconds(Number(amount), {type: 'manual', secondsAdded: Number(amount)})
 });
 
 ipcMain.on('remove-time', (event, amount) => {
-    timer.addSeconds(-Number(amount))
+    timer.addSeconds(-Number(amount), {type: 'manual', secondsAdded: Number(amount)})
 });
 
 ipcMain.handle('clear-stored-time', () => {

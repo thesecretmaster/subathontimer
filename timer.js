@@ -72,6 +72,7 @@ function processStateQueue() {
     let [newState, metadata] = stateQueue.shift();
     console.log("Processing state queue element", newState, metadata)
     processingAddition = true;
+    if (newState.last_updated === null) skipAnimation = true
 
     if (currentState === null) {
         currentState = newState
