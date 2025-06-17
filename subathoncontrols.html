@@ -18,7 +18,7 @@
             <button onclick="stopMultiplier()">Stop Multiplier</button>
         </div>
         <div class="column">
-            <input type="number" id="timeAdjustment" placeholder="Time (seconds)">
+            <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="timeAdjustment" placeholder="Time (HH:MM:SS, MM:SS, or seconds)">
             <button onclick="addTime()">Add Time</button>
             <br>
             <button onclick="removeTime()">Remove Time</button>
@@ -53,12 +53,22 @@
             window.electronAPI.startMultiplier(1);
        }
 
+        function parseHhMmSs(v) {
+          const vs = v.split(':')
+          let secs = Number(vs.pop())
+          const minutes = vs.pop()
+          if (minutes) secs += Number(minutes) * 60
+          const hours = vs.pop()
+          if (hours) secs += Number(hours) * 60 * 60
+          return secs
+        }
+
        function addTime() {
-            window.electronAPI.addTime(document.getElementById("timeAdjustment").value)
+            window.electronAPI.addTime(parseHhMmSs(document.getElementById("timeAdjustment").value))
        }
 
        function removeTime() {
-            window.electronAPI.addTime(-document.getElementById("timeAdjustment").value)
+            window.electronAPI.addTime(-parseHhMmSs(document.getElementById("timeAdjustment").value))
        }
     </script>
 </body>

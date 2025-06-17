@@ -28,8 +28,8 @@
     <h1 id="general">Subathon Settings</h1>
     <form id="subathonForm">
       <div>
-        <label for="startingTime">Starting Time (in seconds):</label>
-        <input type="number" id="startingTime" name="startingTime" required>
+        <label for="startingTime">Starting Time (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="startingTime" name="startingTime" required>
 
         <label for="randomHourChance">Chance to Add Hour (0-1 e.g. 95% = .95)</label>
         <input type="number" step=".01" id="randomHourChance" name="randomHourChance" required>
@@ -43,16 +43,16 @@
 
       <h2 id="twitch">Twitch Increments</h2>
       <div>
-        <label for="tier1Increment">Tier 1 Increment (seconds):</label>
-        <input type="number" id="tier1Increment" name="tier1Increment" required>
+        <label for="tier1Increment">Tier 1 Increment (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="tier1Increment" name="tier1Increment" required>
       </div>
       <div>
-        <label for="tier2Increment">Tier 2 Increment (seconds):</label>
-        <input type="number" id="tier2Increment" name="tier2Increment" required>
+        <label for="tier2Increment">Tier 2 Increment (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="tier2Increment" name="tier2Increment" required>
       </div>
       <div>
-        <label for="tier3Increment">Tier 3 Increment (seconds):</label>
-        <input type="number" id="tier3Increment" name="tier3Increment" required>
+        <label for="tier3Increment">Tier 3 Increment (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="tier3Increment" name="tier3Increment" required>
       </div>
       <div>
         <label for="bitIncrement">Bit Increment (seconds per 100bits):</label>
