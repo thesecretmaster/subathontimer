@@ -1,6 +1,7 @@
 const { BrowserWindow } = require("electron");
 const { createFileStream, SingletonWindow } = require("./util")
 const path = require('path');
+const { timer } = require("./timerUtils");
 
 const logsWindow = new SingletonWindow((mainWindow) => {
     const win = new BrowserWindow({
@@ -27,10 +28,10 @@ function timerLogWrite(json) {
 }
 
 process.on('exit', () => {
-    timerLogWrite({logType: 'process', event: 'exit', timestamp: new Date()})
+    timerLogWrite({logType: 'process', event: 'exit', timestamp: new Date(), timerTime: timer.currentTimeMs()})
     timerLogStream.end()
 });
 
-timerLogWrite({logType: 'process', event: 'start', timestamp: new Date()});
+timerLogWrite({logType: 'process', event: 'start', timestamp: new Date(), timerTime: timer.currentTimeMs()});
 
 module.exports = { timerLogWrite, logsWindow }

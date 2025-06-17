@@ -31,7 +31,7 @@ class TimerState extends EventEmitter {
 
     pause(metadata = null) {
         if (this.#running) {
-            this.#setTime(this.#currentTime())
+            this.#setTime(this.currentTimeMs())
             this.#running = false
             this.#changeState(metadata);
         }
@@ -44,7 +44,7 @@ class TimerState extends EventEmitter {
         }
     }
 
-    #currentTime() {
+    currentTimeMs() {
         let v;
         if (this.#last_updated === null || !this.#running) {
             v = this.#ms_remaining
@@ -82,7 +82,7 @@ class TimerState extends EventEmitter {
     }
 
     modify(f, metadata = null) {
-        this.#setTime(f(this.#currentTime()))
+        this.#setTime(f(this.currentTimeMs()))
         this.#changeState(metadata);
 
         return this.#ms_remaining

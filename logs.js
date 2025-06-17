@@ -67,9 +67,9 @@ function addLog(log) {
     prev_log = log
   } else if (log.logType === 'process') {
     if (log.event === 'start') {
-      row.textContent = `${new Date(log.timestamp).toLocaleString()}: Program started`
+      row.textContent = `${new Date(log.timestamp).toLocaleString()} (${msToTs(log.timerTime)}): Program started`
     } else if (log.event === 'exit') {
-      row.textContent = `${new Date(log.timestamp).toLocaleString()}: Program stopped`
+      row.textContent = `${new Date(log.timestamp).toLocaleString()} (${msToTs(log.timerTime)}): Program stopped`
     } else {
       row.textContent = JSON.stringify(log)
     }
