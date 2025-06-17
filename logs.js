@@ -30,6 +30,8 @@ function addLog(log) {
     let cts = null;
     if (prev_log === null) {
       cts = `Started with timer at ${logToS(log)}`
+    } else if (log.logData.state.last_updated === null) {
+      cts = `Reset timer`
     } else {
       if (prev_log.logData.state.running !== log.logData.state.running) {
         if (log.logData.state.running && log.logData.state.ms_remaining === prev_log.logData.state.ms_remaining) {
