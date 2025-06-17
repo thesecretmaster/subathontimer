@@ -55,7 +55,7 @@ class TimerState extends EventEmitter {
     }
 
     #setTime(newTime) {
-        this.#ms_remaining = newTime
+        this.#ms_remaining = Math.max(newTime, 0)
         if (this.#last_updated !== null) this.#last_updated = new Date()
     }
 
