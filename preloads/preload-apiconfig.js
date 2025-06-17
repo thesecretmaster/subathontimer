@@ -1,20 +1,6 @@
-const { ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron')
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // Retrieve saved keys
-  const config = await ipcRenderer.invoke('get-api-keys');
-  document.getElementById('twitchUsername').value = config.twitchUsername || '';
-  document.getElementById('twitchClientId').value = config.twitchClientId || '';
-  document.getElementById('twitchClientSecret').value = config.twitchClientSecret || '';
-
-  const form = document.getElementById('apiForm');
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const keys = {
-      twitchUsername: document.getElementById('twitchUsername').value,
-      twitchClientId: document.getElementById('twitchClientId').value,
-      twitchClientSecret: document.getElementById('twitchClientSecret').value
-    };
-    ipcRenderer.send('save-api-config', keys);
-  })
-});
+contextBridge.exposeInMainWorld('electronAPI', {
+  saveApiConfig: (keys) => ipcRenderer.send('save-api-config', keys),
+  getApiConfig: async () => await ipcRenderer.invoke('get-api-config'),
+})

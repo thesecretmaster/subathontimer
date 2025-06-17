@@ -118,8 +118,6 @@ const subathonControlsWindow = new SingletonWindow(() => {
         icon: __dirname + 'img/icon.ico',
         modal: true,
         webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: false,
             preload: path.join(__dirname, 'preloads/preload-subcontrols.js')
         }
     });
@@ -246,7 +244,7 @@ const configWindow = new SingletonWindow(() => {
 })
 
 // Get and Restore API Keys
-ipcMain.handle('get-api-keys', () => {
+ipcMain.handle('get-api-config', () => {
     const config = readJsonFile('apiConfig.json', {});
     if (config.twitchClientId && config.youtubeApiKey && config.clientId) {
         disconnectTwitchWS();
