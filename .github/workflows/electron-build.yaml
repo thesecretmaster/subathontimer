@@ -21,4 +21,5 @@ jobs:
         run: npm exec -- @electron/packager ./ --out=/tmp/dist/
       - uses: actions/upload-artifact@v4
         with:
+          name: ${{ os.matrix }}
           path: /tmp/dist
