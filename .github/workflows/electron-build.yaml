@@ -18,7 +18,7 @@ jobs:
       - name: 'Install deps'
         run: npm install
       - name: 'Electron build'
-        run: npm exec -- @electron/packager ./ --out=dist/
+        run: npm exec -- @electron/packager ./ --out=dist
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}
