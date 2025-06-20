@@ -9,12 +9,18 @@ let adjustmentInterval = null;
 let displayQueue = []; // Queue for handling each `add-time` event individually
 let processingAddition = false; // To track if an addition is being processed
 
+let acceptTime = true; // Allows time to be added to the timer
+
 document.addEventListener('DOMContentLoaded', () => {
     timerElement = document.getElementById("subTimer");
     createAdditionDisplayElement();
 });
 
 ipcRenderer.on('add-time', (event, secondsToAdd, subSettings, isSub) => {
+
+    if (!acceptTime)
+        return;
+
     var isFromControl = false;
 
     if (subSettings === null) isFromControl = true;
@@ -58,6 +64,7 @@ ipcRenderer.on('set-start-time', (event, seconds) => {
 });
 
 ipcRenderer.on('start-timer', (event) => {
+    acceptTime = true;
     if (!running) startTimer();
 });
 
@@ -81,7 +88,7 @@ function setTimerTo(seconds) {
 }
 
 function processAddTimeQueue() {
-    if (processingAddition || displayQueue.length === 0) return;
+    if (processingAddition || displayQueue.length === 0 || !acceptTime) return;
 
     const { secondsToAdd, displayColor, timerColor } = displayQueue.shift();
     processingAddition = true;
@@ -128,6 +135,7 @@ function startTimer() {
         } else {
             clearInterval(interval);
             running = false;
+            acceptTime = false;
         }
     }, 1000);
 }

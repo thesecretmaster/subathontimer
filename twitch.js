@@ -1,9 +1,4 @@
-/**
- * Fetches an OAuth token using the Client Credentials Flow.
- * @param {string} clientId - Your Twitch app's Client ID.
- * @param {string} clientSecret - Your Twitch app's Client Secret.
- * @returns {Promise<string>} - The OAuth token.
- */
+//grabs auth from client info
 async function getOAuthToken(clientId, clientSecret) {
     const response = await fetch('https://id.twitch.tv/oauth2/token', {
         method: 'POST',

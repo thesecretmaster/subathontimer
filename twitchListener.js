@@ -2,14 +2,7 @@ const WebSocket = require('ws');
 
 let twitchConnection;
 
-/**
- * Starts a Twitch EventSub WebSocket listener for subscriptions and cheers.
- * @param {string} clientId - Twitch Application Client ID.
- * @param {string} oauthToken - OAuth token for authentication.
- * @param {string} broadcasterId - The User ID of the Twitch broadcaster to monitor.
- * @param {object} settings - Application settings.
- * @param {object} mainWindow - Reference to the Electron main window.
- */
+
 async function startTwitchListener(clientId, oauthToken, broadcasterId, settings, mainWindow) {
     const ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
     twitchConnection = ws;
@@ -48,31 +41,27 @@ async function startTwitchListener(clientId, oauthToken, broadcasterId, settings
             if (message.metadata.subscription_type === 'channel.cheer') {
 
                 const increment = settings.bitIncrement * (event.bits / 100);
-                if(event.user_login === 'jakezsr')
-                {
+                if (event.user_login === 'jakezsr') {
                     mainWindow.webContents.send('add-time', 10000, settings, true);
                 } else {
                     mainWindow.webContents.send('add-time', increment, settings, false);
                 }
-                
+
             }
 
-            if (message.metadata.subscription_type === 'channel.hype_train.begin')
-                {
-                    const multi = 1.1;
-                    console.log("twithcListener hypetrain started " + multi);
-                    mainWindow.webContents.send('change-multi', multi);
-                }
+            if (message.metadata.subscription_type === 'channel.hype_train.begin') {
+                const multi = 1.1;
+                console.log("twithcListener hypetrain started " + multi);
+                mainWindow.webContents.send('change-multi', multi);
+            }
 
-            if (message.metadata.subscription_type === 'channel.hype_train.progress')
-            {
+            if (message.metadata.subscription_type === 'channel.hype_train.progress') {
                 const multi = 1 + (message.payload.event.level * 0.1);
                 console.log("twithcListener hypetrain progress " + multi);
                 mainWindow.webContents.send('change-multi', multi);
             }
 
-            if (message.metadata.subscription_type === 'channel.hype_train.end')
-            {
+            if (message.metadata.subscription_type === 'channel.hype_train.end') {
                 const multi = 0;
                 console.log("twithcListener hypetrain end " + multi);
                 mainWindow.webContents.send('change-multi', multi);
@@ -87,13 +76,7 @@ async function startTwitchListener(clientId, oauthToken, broadcasterId, settings
     return ws;
 }
 
-/**
- * Subscribes to Twitch EventSub events.
- * @param {string} clientId - Twitch Application Client ID.
- * @param {string} oauthToken - OAuth token for authentication.
- * @param {string} broadcasterId - The User ID of the broadcaster.
- * @param {string} sessionId - WebSocket session ID.
- */
+
 async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId) {
     const subscriptions = [
         {
@@ -111,20 +94,20 @@ async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId)
         {
             type: 'channel.hype_train.begin',
             version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', session_id: sessionId}
+            condition: { broadcaster_user_id: broadcasterId },
+            transport: { method: 'websocket', session_id: sessionId }
         },
         {
             type: 'channel.hype_train.progress',
             version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', session_id: sessionId}
+            condition: { broadcaster_user_id: broadcasterId },
+            transport: { method: 'websocket', session_id: sessionId }
         },
         {
             type: 'channel.hype_train.end',
             version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', session_id: sessionId}
+            condition: { broadcaster_user_id: broadcasterId },
+            transport: { method: 'websocket', session_id: sessionId }
         },
         /*{
             type: 'channel.hype_train.begin',
@@ -160,10 +143,7 @@ async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId)
     }
 }
 
-/**
- * Disconnects from the Twitch EventSub WebSocket.
- * @param {WebSocket} ws - The WebSocket instance to disconnect.
- */
+
 function disconnectTwitchListener() {
     console.log("Attempting to disconnect from Twitch WS.");
     if (twitchConnection && twitchConnection.readyState === WebSocket.OPEN) {
