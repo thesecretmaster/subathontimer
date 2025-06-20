@@ -1,9 +1,6 @@
-/**
- * Fetches an OAuth token using the Client Credentials Flow.
- * @param {string} clientId - Your Twitch app's Client ID.
- * @param {string} clientSecret - Your Twitch app's Client Secret.
- * @returns {Promise<string>} - The OAuth token.
- */
+const fs = require('node:fs');
+const { readJsonFile, writeJsonFile } = require('./util');
+//grabs auth from client info
 async function getOAuthToken(clientId, clientSecret) {
     const response = await fetch('https://id.twitch.tv/oauth2/token', {
         method: 'POST',
@@ -19,4 +16,37 @@ async function getOAuthToken(clientId, clientSecret) {
     return data.access_token;
 }
 
-module.exports = { getOAuthToken };
+async function apiRequest(url, options) {
+    const tokenConfig = readJsonFile('apiToken.json');
+    const appConfig = readJsonFile('apiConfig.json');
+    options.headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+        'Client-ID': appConfig.twitchClientId,
+        'Authorization': `Bearer ${tokenConfig['access_token']}`
+    }
+    if (!options.method) options.method = 'POST'
+    const res = await fetch(url, options)
+    if (res.status === 401) {
+        const refresh_res = await fetch('https://id.twitch.tv/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({client_id: appConfig.twitchClientId, client_secret: appConfig.twitchClientSecret, grant_type: 'refresh_token', refresh_token: tokenConfig['refresh_token']})
+        });
+        if (refresh_res.ok) {
+            const refresh_json = await refresh_res.json();
+            writeJsonFile('apiToken.json', refresh_json);
+            options.headers = {
+                ...options.headers,
+                'Authorization': `Bearer ${refresh_json['access_token']}`
+            }
+            return await fetch(url, options)
+        } else {
+            return res
+        }
+    } else {
+        return res
+    }
+}
+
+module.exports = { getOAuthToken, apiRequest };

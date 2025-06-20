@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Subathon Settings</title>
   <link rel="stylesheet" href="global.css">
+  <script src="subsettings.js"></script>
+  <script src="hhmmss.js"></script>
 </head>
+
 <body>
+  <!--
   <div class="sidebar">
     <div class="icon-container">
       <a href="#general" class="nav-icon">
@@ -20,41 +25,47 @@
       </a>
     </div>
   </div>
+-->
   <main class="leftbar-main">
     <h1 id="general">Subathon Settings</h1>
     <form id="subathonForm">
       <div>
-        <label for="startingTime">Starting Time (in seconds):</label>
-        <input type="number" id="startingTime" name="startingTime" required>
+        <label for="startingTime">Starting Time (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="startingTime" name="startingTime" required>
 
-        <label for ="randomHourChance">Chance to Add Hour (0-1 e.g. 95% = .95)</label>
+        <label for="randomHourChance">Chance to Add Hour (0-1 e.g. 95% = .95)</label>
         <input type="number" step=".01" id="randomHourChance" name="randomHourChance" required>
 
-        <label for = "oddsForMultiplier">Chance to Multiply (0-1 e.g. .95 = 95%)</label>
+        <label for="oddsForMultiplier">Chance to Multiply (0-1 e.g. .95 = 95%)</label>
         <input type="number" step=".01" id="oddsForMultiplier" name="oddsForMultiplier" required>
 
-        <label for = "amountForMultiplier">Chance to Multiply by X (e.g. 4 = 4x)</label>
+        <label for="amountForMultiplier">Chance to Multiply by X (e.g. 4 = 4x)</label>
         <input type="number" id="amountForMultiplier" name="amountForMultiplier" required>
       </div>
 
       <h2 id="twitch">Twitch Increments</h2>
       <div>
-        <label for="tier1Increment">Tier 1 Increment (seconds):</label>
-        <input type="number" id="tier1Increment" name="tier1Increment" required>
+        <label for="tier1Increment">Tier 1 Increment (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="tier1Increment" name="tier1Increment" required>
       </div>
       <div>
-        <label for="tier2Increment">Tier 2 Increment (seconds):</label>
-        <input type="number" id="tier2Increment" name="tier2Increment" required>
+        <label for="tier2Increment">Tier 2 Increment (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="tier2Increment" name="tier2Increment" required>
       </div>
       <div>
-        <label for="tier3Increment">Tier 3 Increment (seconds):</label>
-        <input type="number" id="tier3Increment" name="tier3Increment" required>
+        <label for="tier3Increment">Tier 3 Increment (HH:MM:SS, MM:SS, or seconds):</label>
+        <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" id="tier3Increment" name="tier3Increment" required>
       </div>
       <div>
         <label for="bitIncrement">Bit Increment (seconds per 100bits):</label>
         <input type="number" id="bitIncrement" name="bitIncrement" required>
       </div>
+      <div>
+        <label for="hypeTrainMulti">Hype Train Multiplier (time added = base * (1 + (multiplier * level))):</label>
+        <input type="number" id="hypeTrainMulti" name="hypeTrainMulti" required step="0.001">
+      </div>
 
+      <!--
       <h2 id="youtube">YouTube Increment</h2>
       <div>
         <label for="memberIncrement">Member Increment (seconds):</label>
@@ -64,43 +75,10 @@
         <label for="superchatIncrement">Superchat Increment (seconds per $1):</label>
         <input type="number" id="superchatIncrement" name="superchatIncrement" required>
       </div>
+-->
       <br>
       <button type="submit">Save Settings</button>
     </form>
   </main>
 </body>
-<script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    // Retrieve saved keys
-    const { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement } = await window.electronAPI.getSettings();
-    document.getElementById('startingTime').value = startingTime || '';
-    document.getElementById('randomHourChance').value = randomHourChance || '';
-    document.getElementById('oddsForMultiplier').value = oddsForMultiplier || '';
-    document.getElementById('amountForMultiplier').value = amountForMultiplier || '';
-    document.getElementById('tier1Increment').value = tier1Increment || '';
-    document.getElementById('tier2Increment').value = tier2Increment || '';
-    document.getElementById('tier3Increment').value = tier3Increment || '';
-    document.getElementById('bitIncrement').value = bitIncrement || '';
-    document.getElementById('memberIncrement').value = memberIncrement || '';
-    document.getElementById('superchatIncrement').value = superchatIncrement || '';
-  });
-
-  const form = document.getElementById('subathonForm');
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const startingTime = document.getElementById('startingTime').value;
-    const randomHourChance = document.getElementById('randomHourChance').value;
-    const oddsForMultiplier = document.getElementById('oddsForMultiplier').value;
-    const amountForMultiplier = document.getElementById('amountForMultiplier').value;
-    const tier1Increment = document.getElementById('tier1Increment').value;
-    const tier2Increment = document.getElementById('tier2Increment').value;
-    const tier3Increment = document.getElementById('tier3Increment').value;
-    const bitIncrement = document.getElementById('bitIncrement').value;
-
-    const memberIncrement = document.getElementById('memberIncrement').value;
-    const superchatIncrement = document.getElementById('superchatIncrement').value;
-
-    window.electronAPI.saveSettings({ startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
-  });
-</script>
 </html>

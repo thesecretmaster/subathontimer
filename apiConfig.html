@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<link rel="stylesheet" href="global.css">
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>API Configuration</title>
+  <script src="apiConfig.js"></script>
+</head>
+<body>
+  <main class="noBarMain">
+  <h2>Twitch API Keys</h2>
+  <p>Note: You must go to https://dev.twitch.tv and create an application to obtain a Client ID and Client Secret. When you set this up, make sure to set "http://localhost:8008/oauth" as a Redirect URI</p>
+  <form id="apiForm">
+    <div>
+      <label>Twitch Name:</label>
+      <input type="text" id="twitchUsername" required>
+    </div>
+    <div>
+      <label>Twitch Client ID:</label>
+      <input type="password" id="twitchClientId" required>
+    </div>
+    <div>
+      <label>Twitch Client Secret:</label>
+      <input type="password" id="twitchClientSecret" required>
+    </div>
+    <br>
+    <button type="submit">Save</button>
+  </form>
+  <br>
+  <label>Subathon Timer 1.1.0 © JakeZSR Industries</label>
+  </main>
+</body>
+</html>

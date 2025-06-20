@@ -1,97 +1,107 @@
-const { ipcRenderer } = require('electron');
-
 let timerElement;
-let remainingSeconds = 0;
-var multiplier = 0;
-let interval = null;
-let running = false;
 let adjustmentInterval = null;
-let displayQueue = []; // Queue for handling each `add-time` event individually
 let processingAddition = false; // To track if an addition is being processed
+let last_keepalive = null;
+let skipAnimation = false;
+let wsSetupComplete = false;
+
+function updateKeepaliveIndicator() {
+    const warnElement = document.getElementById('keepaliveWarn')
+    const setupElement = document.getElementById('setupIncomplete');
+    warnElement.classList.remove(...warnElement.classList)
+    if (last_keepalive === null) {
+        warnElement.classList.add('warn-loading')
+        warnElement.innerHTML = '🛑 Connection set-up incomplete or failed'
+        setupElement.style.display = 'none'
+    } else if (new Date() - last_keepalive > 30 * 1000) {
+        warnElement.classList.add('warn-active')
+        warnElement.textContent = '⚠️'
+        setupElement.style.display = 'none'
+    } else if (!wsSetupComplete) {
+        setupElement.style.display = 'block'
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     timerElement = document.getElementById("subTimer");
     createAdditionDisplayElement();
+    updateKeepaliveIndicator();
+    setInterval(updateKeepaliveIndicator, 1000)
 });
 
-ipcRenderer.on('add-time', (event, secondsToAdd, subSettings, isSub) => {
-    var isFromControl = false;
+electronAPI.onWsSetupComplete(() => {
+    wsSetupComplete = true;
+    updateKeepaliveIndicator()
+})
 
-    if (subSettings === null) isFromControl = true;
-    var rand = Math.random();
-    var multi = multiplier;
-    let displayColor = "#90EE90";
-    let timerColor = "";
+electronAPI.onWsKeepalive((keepalive_ts) => {
+    last_keepalive = keepalive_ts
+    updateKeepaliveIndicator()
+})
 
-    if (!isFromControl && isSub) {
-        if (rand <= subSettings.oddsForMultiplier) {
-            multi += Number(subSettings.amountForMultiplier);
-            displayColor = "yellow";
-            timerColor = "yellow";
-        }
+const stateQueue = [];
+let currentState = null;
 
-        // Hour addition
-        rand = Math.random();
-        if (rand <= subSettings.randomHourChance) {
-            secondsToAdd = 3600;
-            displayColor = "rainbow";
-            timerColor = "rainbow";
-        }
-    }
+electronAPI.onUpdateTimer((newState, metadata) => {
+    stateQueue.push([newState, metadata])
+    processStateQueue()
+})
 
-    if(multi === 0)
-    {
-        multi = 1;
-    }
-
-    secondsToAdd = Math.trunc(Number(secondsToAdd * multi));
-    if (secondsToAdd > 0) {
-        displayQueue.push({ secondsToAdd, displayColor, timerColor });
-        processAddTimeQueue();
-    }
-});
-
-ipcRenderer.on('set-start-time', (event, seconds) => {
-    if (!running) {
-        setTimerTo(Number(seconds));
-    }
-});
-
-ipcRenderer.on('start-timer', (event) => {
-    if (!running) startTimer();
-});
-
-ipcRenderer.on('pause-timer', (event) => {
-    pauseTimer();
-});
-
-ipcRenderer.on('change-multi', (event, value) => {
-    multiplier = value;
-    console.log(multiplier + "in timer");
-});
-
-ipcRenderer.on('apply-theme', (event, themeCssPath) => {
-    let style = document.getElementById("style").href = themeCssPath;
-    console.log("theme applied");
-});
-
-function setTimerTo(seconds) {
-    remainingSeconds = seconds;
-    timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
+function currentSecondsRemaining(state = null) {
+    return Math.round(currentMsRemaining(state) / 1000)
 }
 
-function processAddTimeQueue() {
-    if (processingAddition || displayQueue.length === 0) return;
+function currentMsRemaining(state = null) {
+    if (state === null) state = currentState;
+    let v;
+    if (state === null) {
+        return null
+    } else if (state.last_updated === null) {
+        v = state.ms_remaining
+    } else if (state.running) {
+        v = state.ms_remaining - (new Date() - state.last_updated)
+    } else {
+        v = state.ms_remaining
+    }
+    return v >= 0 ? v : 0
+}
 
-    const { secondsToAdd, displayColor, timerColor } = displayQueue.shift();
+function processStateQueue() {
+    if (processingAddition || stateQueue.length === 0) return;
+
+    let [newState, metadata] = stateQueue.shift();
+    console.log("Processing state queue element", newState, metadata)
     processingAddition = true;
+    if (newState.last_updated === null) skipAnimation = true
+
+    if (currentState === null) {
+        currentState = newState
+        timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+        processingAddition = false;
+        console.log("Done processing inital state update")
+        return
+    }
 
     const displayElement = document.getElementById("timeAdditionDisplay");
-    const newRemainingSeconds = remainingSeconds + secondsToAdd;
 
-    const formattedTime = formatTime(secondsToAdd);
-    displayElement.innerText = `+${formattedTime}`;
-    applyColorEffects(displayElement, displayColor);
+    let displayColor = "#90EE90";
+    let timerColor = "";
+    if (metadata) {
+        if (metadata.randomMulti) {
+            displayColor = "yellow"
+            timerColor = "yellow"
+        }
+        if (metadata.randomHour) {
+            displayColor = "rainbow"
+            timerColor = "rainbow"
+        }
+
+        if (metadata.secondsAdded) {
+            const formattedTime = formatTime(metadata.secondsAdded);
+            displayElement.innerText = `+${formattedTime}`;
+            applyColorEffects(displayElement, displayColor);
+        }
+    }
 
     applyTimerColor(timerColor);
 
@@ -99,10 +109,22 @@ function processAddTimeQueue() {
     displayElement.style.opacity = "1";
 
     adjustmentInterval = setInterval(() => {
-        if (remainingSeconds < newRemainingSeconds) {
-            remainingSeconds++;
-            timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
-        } else {
+        if (skipAnimation) {
+            while (stateQueue.length > 0) {
+                [newState, metadata] = stateQueue.shift();
+            }
+            console.log("Skipping animation, jumping to", newState);
+            currentState = newState;
+            timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+            skipAnimation = false
+        }
+        const currentMs = currentMsRemaining();
+        const newMs = currentMsRemaining(newState);
+        const diff = Math.max(Math.min(1000, newMs - currentMs), -1000);
+        currentState.ms_remaining += diff
+        timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+        if (Math.abs(diff) < 1000) {
+            currentState = newState
             clearInterval(adjustmentInterval);
             adjustmentInterval = null;
 
@@ -112,33 +134,35 @@ function processAddTimeQueue() {
             setTimeout(() => {
                 displayElement.style.display = "none";
                 processingAddition = false;
-                processAddTimeQueue();
+                skipAnimation = false
+                console.log("Done processing state update")
+                processStateQueue();
             }, 500);
         }
     }, 1);
 }
 
-function startTimer() {
-    if (interval) clearInterval(interval);
-    running = true;
-    interval = setInterval(() => {
-        if (remainingSeconds > 0) {
-            remainingSeconds -= 1;
-            timerElement.innerHTML = convertSecondsToHMS(remainingSeconds);
-        } else {
-            clearInterval(interval);
-            running = false;
-        }
-    }, 1000);
-}
-
-function pauseTimer() {
-    if (interval) {
-        clearInterval(interval);
-        interval = null;
-        running = false;
+electronAPI.onSkipAnimation(() => {
+    if (processingAddition) {
+        skipAnimation = true;
     }
-}
+})
+
+electronAPI.onApplyTheme((themeCssPath) => {
+    document.getElementById("style").href = themeCssPath;
+    console.log("theme applied");
+});
+
+setInterval(() => {
+    if (processingAddition) return
+    const remainingSeconds = currentSecondsRemaining()
+    if (remainingSeconds === null) {
+        timerElement.textContent = "N/A"
+        return
+    }
+    if (remainingSeconds > 0) remainingSeconds === 0
+    timerElement.textContent = convertSecondsToHMS(remainingSeconds);
+}, 100)
 
 function convertSecondsToHMS(seconds) {
     const hours = Math.floor(seconds / (60 * 60));

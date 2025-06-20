@@ -1,6 +1,6 @@
-const { ipcRenderer } = require('electron');
-window.electronAPI = {
-  saveKeys: (data) => ipcRenderer.send('save-keys', data),
-  getKeys: () => ipcRenderer.invoke('get-api-keys'),
-  refreshTokens: () => ipcRenderer.invoke('regenerate-tokens')
-};
+const { contextBridge, ipcRenderer } = require('electron')
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  saveApiConfig: (keys) => ipcRenderer.send('save-api-config', keys),
+  getApiConfig: async () => await ipcRenderer.invoke('get-api-config'),
+})

@@ -1,181 +1,245 @@
 const WebSocket = require('ws');
+const EventEmitter = require('node:events');
+const { apiRequest } = require('./twitch');
+const { createLogStream } = require('./util');
+const { dialog } = require('electron');
+const { subathon_state } = require('./subathonState');
+const { timerLogWrite } = require('./timerLog');
 
-let twitchConnection;
+let connection_good = true;
+const min_reconnect_wait = 30;
+const logStream = createLogStream('eventsub.log');
+const EVENTSUB_SOCKET_URL = 'wss://eventsub.wss.twitch.tv/ws'
+const EVENTSUB_SUBSCRIBE_URL = 'https://api.twitch.tv/helix/eventsub/subscriptions'
 
-/**
- * Starts a Twitch EventSub WebSocket listener for subscriptions and cheers.
- * @param {string} clientId - Twitch Application Client ID.
- * @param {string} oauthToken - OAuth token for authentication.
- * @param {string} broadcasterId - The User ID of the Twitch broadcaster to monitor.
- * @param {object} settings - Application settings.
- * @param {object} mainWindow - Reference to the Electron main window.
- */
-async function startTwitchListener(clientId, oauthToken, broadcasterId, settings, mainWindow) {
-    const ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
-    twitchConnection = ws;
+// const EVENTSUB_SOCKET_URL = 'ws://127.0.0.1:8080/ws'
+// const EVENTSUB_SUBSCRIBE_URL = 'http://127.0.0.1:8080/eventsub/subscriptions'
 
-    ws.on('open', () => {
-        console.log('Connected to Twitch EventSub WebSocket.');
-    });
+class TwitchListener extends EventEmitter {
+    #last_autoreconnect = new Date();
+    #broadcasterId;
+    #twitchConnection;
 
-    ws.on('message', async (data) => {
-        const message = JSON.parse(data);
-        console.log(JSON.stringify(message));
-        if (message.metadata?.message_type === 'session_welcome') {
-            console.log('Twitch EventSub session established:', JSON.stringify(message));
-            await subscribeToEvents(clientId, oauthToken, broadcasterId, message.payload.session.id);
-        }
+    constructor(broadcasterId, url = EVENTSUB_SOCKET_URL, prev_connection = null) {
+        super();
+        this.#broadcasterId = broadcasterId
+        this.#start(url, prev_connection)
+    }
 
-        if (message.metadata?.message_type === 'notification') {
-            const event = message.payload.event;
-            if (message.metadata.subscription_type === 'channel.subscribe') {
-                switch (event.tier) {
-                    case '1000':
-                        mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
-                        break;
-                    case '2000':
-                        mainWindow.webContents.send('add-time', settings.tier2Increment, settings, true);
-                        break;
-                    case '3000':
-                        mainWindow.webContents.send('add-time', settings.tier3Increment, settings, true);
-                        break;
-                    default:
-                        console.log('Default subscription tier applied');
-                        mainWindow.webContents.send('add-time', settings.tier1Increment, settings, true);
-                        break;
-                }
-            }
-            if (message.metadata.subscription_type === 'channel.cheer') {
+    #start(url = EVENTSUB_SOCKET_URL, prev_connection = null) {
+        console.log("Attempting to launch EventSub websocket");
+        const ws = new WebSocket(url);
+        // This overload is shitty, but we need a way to associate a variable with a websocket
+        // and I'm too lazy to make a whole wrapper class just for this
+        ws.overloadedDisconnected = false;
+        let last_keepalive = null;
+        this.#twitchConnection = ws;
 
-                const increment = settings.bitIncrement * (event.bits / 100);
-                if(event.user_login === 'jakezsr')
-                {
-                    mainWindow.webContents.send('add-time', 10000, settings, true);
+        ws.on('pong', () => {
+            logStream.write(JSON.stringify({log: true, type: 'pong', time: new Date().toISOString()}));
+        })
+
+        let keepaliveLoop = null;
+        let pingLoop = null;
+
+        ws.on('open', () => {
+            console.log('Connected to Twitch EventSub WebSocket.');
+
+            keepaliveLoop = setInterval(() => {
+                if (last_keepalive === null) return;
+                if (new Date() - last_keepalive > 30 * 1000) {
+                    if (connection_good) {
+                        timerLogWrite({logType: 'connection', state: 'bad', timestamp: new Date()});
+                        connection_good = false;
+                    }
                 } else {
-                    mainWindow.webContents.send('add-time', increment, settings, false);
+                    if (!connection_good) {
+                        timerLogWrite({logType: 'connection', state: 'good', timestamp: new Date()});
+                        connection_good = true;
+                    }
                 }
-                
-            }
-
-            if (message.metadata.subscription_type === 'channel.hype_train.begin')
-                {
-                    const multi = 1.1;
-                    console.log("twithcListener hypetrain started " + multi);
-                    mainWindow.webContents.send('change-multi', multi);
+                if (new Date() - last_keepalive > 120 * 1000) {
+                    console.log("Last keepalive more than 120 seconds ago. Restarting.")
+                    keepaliveLoop?.close()
+                    pingLoop?.close()
+                    ws.overloadedDisconnected = true;
+                    ws.terminate()
+                    this.#start()
                 }
+            }, 1000)
 
-            if (message.metadata.subscription_type === 'channel.hype_train.progress')
-            {
-                const multi = 1 + (message.payload.event.level * 0.1);
-                console.log("twithcListener hypetrain progress " + multi);
-                mainWindow.webContents.send('change-multi', multi);
-            }
-
-            if (message.metadata.subscription_type === 'channel.hype_train.end')
-            {
-                const multi = 0;
-                console.log("twithcListener hypetrain end " + multi);
-                mainWindow.webContents.send('change-multi', multi);
-            }
-        }
-    });
-
-    ws.on('close', () => {
-        console.log('Disconnected from Twitch EventSub WebSocket.');
-    });
-
-    return ws;
-}
-
-/**
- * Subscribes to Twitch EventSub events.
- * @param {string} clientId - Twitch Application Client ID.
- * @param {string} oauthToken - OAuth token for authentication.
- * @param {string} broadcasterId - The User ID of the broadcaster.
- * @param {string} sessionId - WebSocket session ID.
- */
-async function subscribeToEvents(clientId, oauthToken, broadcasterId, sessionId) {
-    const subscriptions = [
-        {
-            type: 'channel.subscribe',
-            version: '1',
-            condition: { broadcaster_user_id: broadcasterId },
-            transport: { method: 'websocket', session_id: sessionId }
-        },
-        {
-            type: 'channel.cheer',
-            version: '1',
-            condition: { broadcaster_user_id: broadcasterId },
-            transport: { method: 'websocket', session_id: sessionId }
-        },
-        {
-            type: 'channel.hype_train.begin',
-            version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', session_id: sessionId}
-        },
-        {
-            type: 'channel.hype_train.progress',
-            version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', session_id: sessionId}
-        },
-        {
-            type: 'channel.hype_train.end',
-            version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', session_id: sessionId}
-        },
-        /*{
-            type: 'channel.hype_train.begin',
-            version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', sessionId: sessionId}
-        },
-        {
-            type: 'channel.hype_train.end',
-            version: '1',
-            condition: {broadcaster_user_id: broadcasterId},
-            transport: {method: 'websocket', sessionId: sessionId}
-        }*/
-    ];
-
-    for (const sub of subscriptions) {
-        const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
-            method: 'POST',
-            headers: {
-                'Client-ID': clientId,
-                'Authorization': `Bearer ${oauthToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(sub)
+            pingLoop = setInterval(() => {
+                logStream.write(JSON.stringify({log: true, type: 'ping', time: new Date().toISOString()}));
+                ws.ping()
+            }, 10000)
         });
 
-        if (response.ok) {
-            console.log(`Successfully subscribed to ${sub.type}`);
+        ws.on('message', async (data) => {
+            try {
+                logStream.write(data);
+                const message = JSON.parse(data);
+                console.log(JSON.stringify(message));
+
+                if (message.metadata?.message_type === 'session_welcome') {
+                    console.log('Twitch EventSub session established:', JSON.stringify(message));
+                    if (prev_connection !== null) {
+                        prev_connection.close();
+                    } else {
+                        if (await this.#subscribeToEvents(message.payload.session.id)) {
+                            this.emit('ws-setup-complete')
+                        }
+                    }
+                }
+
+                last_keepalive = new Date();
+                this.emit('ws-keepalive', last_keepalive)
+
+                if (message.metadata?.message_type === 'session_reconnect') {
+                    console.log("Got reconnect request")
+                    ws.overloadedDisconnected = true;
+                    this.#start(message.payload.session.reconnect_url, ws)
+                }
+
+                if (message.metadata?.message_type === 'notification') {
+                    const event = message.payload.event;
+                    if (message.metadata.subscription_type === 'channel.subscribe') {
+                        subathon_state.addSub(event.tier, event)
+                    }
+                    if (message.metadata.subscription_type === 'channel.cheer') {
+                        subathon_state.addBits(event.bits, event)
+                    }
+
+                    if (message.metadata.subscription_type === 'channel.hype_train.begin') {
+                        subathon_state.setHypeTrainLevel(1)
+                    }
+
+                    if (message.metadata.subscription_type === 'channel.hype_train.progress') {
+                        subathon_state.setHypeTrainLevel(message.payload.event.level)
+                    }
+
+                    if (message.metadata.subscription_type === 'channel.hype_train.end') {
+                        subathon_state.setHypeTrainLevel(0)
+                    }
+                }
+            } catch (err) {
+                dialog.showMessageBox({title: "WebSocket listener error", message: `${err.toString()}\n${err.stack}`, type: "error"})
+                console.error(err, err.stack)
+            }
+        });
+
+        ws.on('error', (e) => {
+            console.log('Twitch EventSub WebSocket error:', e);
+            keepaliveLoop?.close()
+            pingLoop?.close()
+            const wait_seconds = Math.max(60 - ((new Date() - this.#last_autoreconnect) / 1000), 0)
+            console.log(`Restarting in ${wait_seconds} seconds`);
+            if (wait_seconds > 0) {
+                setTimeout(() => {
+                    this.#last_autoreconnect = new Date()
+                    this.#start()
+                }, min_reconnect_wait * 1000)
+            } else {
+                this.#last_autoreconnect = new Date()
+                this.#start()
+            }
+        })
+
+        ws.on('close', (code, data) => {
+            console.log('Disconnected from Twitch EventSub WebSocket.', code, data.toString());
+            keepaliveLoop?.close()
+            pingLoop?.close()
+            if (!ws.overloadedDisconnected) {
+                const wait_seconds = Math.max(60 - ((new Date() - this.#last_autoreconnect) / 1000), 0)
+                console.log(`Disconnect was not triggered intentionally. Restarting in ${wait_seconds} seconds`)
+                if (wait_seconds > 0) {
+                    setTimeout(() => {
+                        this.#last_autoreconnect = new Date()
+                        this.#start()
+                    }, min_reconnect_wait * 1000)
+                } else {
+                    this.#last_autoreconnect = new Date()
+                    this.#start()
+                }
+            }
+        });
+
+        return ws;
+    }
+
+
+    async #subscribeToEvents(sessionId) {
+        const subscriptions = [
+            {
+                type: 'channel.subscribe',
+                version: '1',
+                condition: { broadcaster_user_id: this.#broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.cheer',
+                version: '1',
+                condition: { broadcaster_user_id: this.#broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.hype_train.begin',
+                version: '1',
+                condition: { broadcaster_user_id: this.#broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.hype_train.progress',
+                version: '1',
+                condition: { broadcaster_user_id: this.#broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.hype_train.end',
+                version: '1',
+                condition: { broadcaster_user_id: this.#broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            /*{
+                type: 'channel.hype_train.begin',
+                version: '1',
+                condition: {broadcaster_user_id: this.#broadcasterId},
+                transport: {method: 'websocket', sessionId: sessionId}
+            },
+            {
+                type: 'channel.hype_train.end',
+                version: '1',
+                condition: {broadcaster_user_id: this.#broadcasterId},
+                transport: {method: 'websocket', sessionId: sessionId}
+            }*/
+        ];
+
+        let any_errors = false;
+        for (const sub of subscriptions) {
+            const response = await apiRequest(EVENTSUB_SUBSCRIBE_URL, { body: JSON.stringify(sub) })
+
+            if (response.ok) {
+                console.log(`Successfully subscribed to ${sub.type}`);
+            } else {
+                any_errors = true;
+                const error = await response.json();
+                console.error(`Failed to subscribe to ${sub.type}:`, error);
+            }
+        }
+        return !any_errors
+    }
+
+    disconnect() {
+        console.log("Attempting to disconnect from Twitch WS.");
+        if (this.#twitchConnection && this.#twitchConnection.readyState === WebSocket.OPEN) {
+            this.#twitchConnection.overloadedDisconnected = true;
+            this.#twitchConnection.close();
+            console.log("Disconnected from Twitch WebSocket.");
+        } else if (this.#twitchConnection) {
+            console.log("WebSocket is not open or already closed. Current state:", this.#twitchConnection.readyState);
         } else {
-            const error = await response.json();
-            console.error(`Failed to subscribe to ${sub.type}:`, error);
+            console.log("No active Twitch WebSocket connection to disconnect.");
         }
     }
 }
 
-/**
- * Disconnects from the Twitch EventSub WebSocket.
- * @param {WebSocket} ws - The WebSocket instance to disconnect.
- */
-function disconnectTwitchListener() {
-    console.log("Attempting to disconnect from Twitch WS.");
-    if (twitchConnection && twitchConnection.readyState === WebSocket.OPEN) {
-        twitchConnection.close();
-        console.log("Disconnected from Twitch WebSocket.");
-    } else if (twitchConnection) {
-        console.log("WebSocket is not open or already closed. Current state:", twitchConnection.readyState);
-    } else {
-        console.log("No active Twitch WebSocket connection to disconnect.");
-    }
-}
-
-
-
-module.exports = { startTwitchListener, disconnectTwitchListener };
+module.exports = { TwitchListener };

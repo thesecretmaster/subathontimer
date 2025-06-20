@@ -125,17 +125,7 @@ label {
     font-weight: bold;
 }
 
-input[type="number"] {
-    width: 75%;
-    padding: 10px;
-    border: 1px solid #3f3f3f;
-    border-radius: 4px;
-    background-color: #121212;
-    color: #8b8b8b;
-    text-align: center;
-}
-
-input[type="text"]
+input
 {
     width: 75%;
     padding: 10px;

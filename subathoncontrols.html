@@ -6,15 +6,21 @@
             <button onclick="startTimer()">Start Timer</button>
             <br>
             <button onclick="pauseTimer()">Pause Timer</button>
+            <br>
+            <button onclick="clearTimer()">Clear Saved Time</button>
+            <br>
+            <button onclick="skipAnimation()">Skip Animation</button>
         </div>
         <div class="column">
-            <input type="number" id="multiplier" placeholder="Multiplier (e.g., 2)" min="1">
+            <div>Current: <span id="overrideMulti" style="color:red;"></span> <span id="hypeMulti"></span></div>
+            <br>
+            <input type="number" id="multiplier" placeholder="Multiplier (e.g., 2)" required min="1">
             <button onclick="startMultiplier()">Start Multiplier</button>
             <br>
             <button onclick="stopMultiplier()">Stop Multiplier</button>
         </div>
         <div class="column">
-            <input type="number" id="timeAdjustment" placeholder="Time (seconds)">
+            <input class="hhmmss" pattern="^(\d+|((\d+:)?\d{1,2}:)?\d{1,2})$" required id="timeAdjustment" placeholder="Time (HH:MM:SS, MM:SS, or seconds)">
             <button onclick="addTime()">Add Time</button>
             <br>
             <button onclick="removeTime()">Remove Time</button>
@@ -22,32 +28,7 @@
     </div>
 
 
-    <script>
-        let multiplierInterval = null;
-
-        function startTimer() {
-            window.electronAPI.startTimer();
-        }
-
-        function pauseTimer() {
-            window.electronAPI.pauseTimer();
-        }
-
-       function startMultiplier() {
-            window.electronAPI.startMultiplier(document.getElementById("multiplier").value);
-       }
-
-       function stopMultiplier() {
-            window.electronAPI.startMultiplier(1);
-       }
-
-       function addTime() {
-            window.electronAPI.addTime(document.getElementById("timeAdjustment").value)
-       }
-
-       function removeTime() {
-            window.electronAPI.removeTime(-document.getElementById("timeAdjustment").value)
-       }
-    </script>
+    <script src="hhmmss.js"></script>
+    <script src="subcontrols.js"></script>
 </body>
 </html>

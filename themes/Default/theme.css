@@ -1,7 +1,7 @@
 #subTimer {
     font-family: 'Comic Sans MS', sans-serif;
     font-size: 70px;
-    color: #a58fc4;
+    color: white;
     text-align: center;
     margin-bottom: 20px;
 }
@@ -9,9 +9,10 @@
 body {
     font-family: 'Comic Sans MS', sans-serif;
     background-color: #121212;
-    color: #8b8b8b;
+    color: white;
     background-image: url(https://media3.giphy.com/media/26AHMBTzc1qJgFfDW/giphy.gif?cid=6c09b952a1ykynung9t31isym25c2cq9n2wv6a78g4l4wmp5&ep=v1_gifs_search&rid=giphy.gif&ct=g);
     background-repeat: no-repeat;
+    background-size: cover;
     margin: 0;
     padding: 0;
     display: flex;

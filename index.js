@@ -1,133 +1,116 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const axios = require('axios');
+const { apiRequest } = require('./twitch');
+const { readJsonFile, getSubSettings, writeJsonFile, createLogStream, createFileStream, readFile, SingletonWindow } = require('./util');
+const { timer } = require('./timerUtils');
+const { TwitchListener } = require('./twitchListener');
+const { timerLogWrite, logsWindow } = require('./timerLog');
+const { subathon_state } = require('./subathonState');
 let mainWindow;
-let configWindow;
-let subathonConfigWindow;
-let subathonControlsWindow;
-let themeWindow;
-let themeCreatorWindow;
 let twitchConnection = null;
 
-const config = JSON.parse(fs.readFileSync('apiConfig.json', 'utf8'));
-const settings = JSON.parse(fs.readFileSync('subSettings.json', 'utf8'));
+const logStream = createLogStream('log.txt');
 
-//debug
-
-// Path to the log file
-const logFile = path.join(__dirname, 'log.txt');
-
-// Create a write stream for the log file
-const logStream = fs.createWriteStream(logFile, { flags: 'a' }); // 'a' means append to the file
-
-// Override console.log
 const originalLog = console.log;
-console.log = function (...args) {
-    // Write to log.txt
+console.log = function(...args) {
     logStream.write(`[LOG] ${new Date().toISOString()} - ${args.join(' ')}\n`);
-    // Call the original console.log
     originalLog.apply(console, args);
 };
 
-// Override console.error
 const originalError = console.error;
-console.error = function (...args) {
-    // Write to log.txt
+console.error = function(...args) {
     logStream.write(`[ERROR] ${new Date().toISOString()} - ${args.join(' ')}\n`);
-    // Call the original console.error
     originalError.apply(console, args);
 };
 
 // Override other console methods as needed
 const originalWarn = console.warn;
-console.warn = function (...args) {
+console.warn = function(...args) {
     logStream.write(`[WARN] ${new Date().toISOString()} - ${args.join(' ')}\n`);
     originalWarn.apply(console, args);
 };
 
 const originalInfo = console.info;
-console.info = function (...args) {
+console.info = function(...args) {
     logStream.write(`[INFO] ${new Date().toISOString()} - ${args.join(' ')}\n`);
     originalInfo.apply(console, args);
 };
-
-// Ensure the log file is properly closed on exit
-process.on('exit', () => logStream.end());
-process.on('SIGINT', () => {
-    logStream.end();
-    process.exit();
-});
 
 ///
 /// Main Window
 ///
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 400,
-    height: 150,
-    resizable: false,
-    autoHideMenuBar: true,
-    alwaysOnTop: true,
-    modal: true,
-    icon: __dirname + 'img/icon.ico',
-    webPreferences: {
-      nodeIntegration: true, 
-      contextIsolation: false,
-      preload: path.join(__dirname, 'preloads/preload-timer.js'),
-    },
-  });
+    mainWindow = new BrowserWindow({
+        width: 400,
+        height: 150,
+        resizable: false,
+        autoHideMenuBar: true,
+        alwaysOnTop: true,
+        modal: true,
+        icon: __dirname + 'img/icon.ico',
+        webPreferences: {
+            preload: path.join(__dirname, 'preloads/preload-timer.js'),
+        },
+    });
 
-  mainWindow.loadFile('timer.html');
+    mainWindow.loadFile('timer.html');
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.webContents.send('update-timer', timer.getState())
+    })
 
-  mainWindow.webContents.on('context-menu', (e, params) => {
-    const menu = Menu.buildFromTemplate([
-      {
-        label: 'Configure API Keys',
-        click: () => {
-          createConfigWindow();
-        },
-      },
-      {
-        label: 'Subathon Settings',
-        click: () => {
-            createSubathonConfigWindow();
-        },
-      },
-      {
-        label: 'Controls',
-        click: () => {
-            createSubathonControlsWindow();
-        },
-      },
-      {
-        label: 'Theme Selector',
-        click: () => {
-            createThemeWindow();
-        },
-      },
-      {
-        label: 'Theme Creator',
-        click: () => {
-            createthemeCreatorWindow();
-        },
-      },
-    ]);
-    menu.popup({ window: mainWindow });
-  });
+    timer.on('update', (state, metadata) => {
+        mainWindow.webContents.send('update-timer', state, metadata)
+    })
+
+    mainWindow.webContents.on('context-menu', (e, params) => {
+        const menu = Menu.buildFromTemplate([
+            {
+                label: 'Configure API Keys',
+                click: () => {
+                    configWindow.create();
+                },
+            },
+            {
+                label: 'Subathon Settings',
+                click: () => {
+                    subathonConfigWindow.create();
+                },
+            },
+            {
+                label: 'Controls',
+                click: () => {
+                    subathonControlsWindow.create();
+                },
+            },
+            {
+                label: 'Logs',
+                click: () => {
+                    logsWindow.create(mainWindow);
+                },
+            },
+            {
+                label: 'Theme Selector',
+                click: () => {
+                    themeWindow.create();
+                },
+            },
+            {
+                label: 'Theme Creator',
+                click: () => {
+                    themeCreatorWindow.create();
+                },
+            },
+        ]);
+        menu.popup({ window: mainWindow });
+    });
 }
 
 ///
 /// Subathon Controls Window
 ///
 
-function createSubathonControlsWindow() {
-    if(subathonControlsWindow) {
-        subathonControlsWindow.focus();
-        return;
-    }
-
-    subathonControlsWindow = new BrowserWindow({
+const subathonControlsWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
         width: 800,
         height: 300,
         parent: mainWindow,
@@ -136,50 +119,95 @@ function createSubathonControlsWindow() {
         icon: __dirname + 'img/icon.ico',
         modal: true,
         webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: false,
             preload: path.join(__dirname, 'preloads/preload-subcontrols.js')
-          }
+        }
     });
-    subathonControlsWindow.loadFile('subathoncontrols.html');
+    win.once('ready-to-show', () => {
+        win.webContents.send('change-multiplier', subathon_state.getMultiplier())
+    })
+    win.loadFile('subathoncontrols.html');
+    return win
+})
 
-    subathonControlsWindow.on('closed', () => {
-        subathonControlsWindow = null
-    });
-}
+subathon_state.on('change-multiplier', (v) => {
+    subathonControlsWindow.use((win) => win.webContents.send('change-multiplier', v))
+})
 
-ipcMain.handle('start-timer', async () => {
-  mainWindow.webContents.send('start-timer');
+ipcMain.on('start-multi', (event, multi) => {
+    subathon_state.overrideMulti(multi)
+})
+
+ipcMain.on('clear-multi', () => {
+    subathon_state.clearOverrideMulti()
+})
+
+ipcMain.handle('start-timer', () => {
+    timer.resume()
 });
 
-ipcMain.handle('pause-timer', async () => {
-  mainWindow.webContents.send('pause-timer');
+ipcMain.handle('pause-timer', () => {
+    timer.pause()
 });
 
-ipcMain.on('start-multi', (event, value) => {
-  console.log("multi started");
-    mainWindow.webContents.send('change-multi', value);
+ipcMain.handle('skip-animation', () => {
+    mainWindow.webContents.send('skip-animation')
 });
 
 ipcMain.on('add-time', (event, amount) => {
-  mainWindow.webContents.send('add-time', amount, null);
+    timer.addSeconds(Number(amount), {type: 'manual', secondsAdded: Number(amount)})
 });
 
 ipcMain.on('remove-time', (event, amount) => {
-  mainWindow.webContents.send('add-time', amount, null);
+    timer.addSeconds(-Number(amount), {type: 'manual', secondsAdded: Number(amount)})
+});
+
+ipcMain.handle('clear-stored-time', () => {
+    timer.reset()
+})
+
+let oauthServerRunning = false
+const twitchRedirectUri = 'http://localhost:8008/oauth'
+
+ipcMain.on('save-api-config', (event, data) => {
+    writeJsonFile('apiConfig.json', data);
+    if (!oauthServerRunning) {
+        const http = require('node:http');
+
+        console.log("Creating Twitch OAuth HTTP server")
+        const server = http.createServer(async (req, res) => {
+            const params = new URLSearchParams(req.url.split('?', 2)[1])
+            const token_res = await fetch('https://id.twitch.tv/oauth2/token', {method: 'POST', headers: { "Content-Type": "application/x-www-form-urlencoded", }, body: new URLSearchParams({client_id: data.twitchClientId, client_secret: data.twitchClientSecret, code: params.get('code'), grant_type: 'authorization_code', redirect_uri: twitchRedirectUri})})
+            if (token_res.ok) {
+                writeJsonFile('apiToken.json', await token_res.json());
+                res.writeHead(200, { 'Content-Type': 'text/plain' });
+                res.end('Token setup complete! You may now close this window');
+                server.close()
+                oauthServerRunning = false
+                configWindow.close();
+                disconnectTwitchWS();
+                attemptTwitchConnect();
+            } else {
+                res.writeHead(token_res.status);
+                res.end(await token_res.bytes());
+            }
+        });
+        server.on('close', () => {
+            console.log("Twitch OAuth HTTP server closing")
+        })
+
+      server.listen(8008);
+      oauthServerRunning = true
+    }
+
+    require('electron').shell.openExternal(`https://id.twitch.tv/oauth2/authorize?client_id=${data.twitchClientId}&redirect_uri=${twitchRedirectUri}&response_type=code&scope=bits:read channel:read:subscriptions channel:read:hype_train`);
 });
 
 ///
 /// Subathon Settings Window
 ///
 
-function createSubathonConfigWindow() {
-    if(subathonConfigWindow) {
-        subathonConfigWindow.focus();
-        return;
-    }
-
-    subathonConfigWindow = new BrowserWindow({
+const subathonConfigWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
         width: 450,
         height: 700,
         parent: mainWindow,
@@ -189,253 +217,155 @@ function createSubathonConfigWindow() {
         modal: true,
         webPreferences: {
             preload: path.join(__dirname, 'preloads/preload-subsettings.js'),
-            nodeIntegration: false,
-            contextIsolation: false
-          }
+        }
     });
-    subathonConfigWindow.loadFile('subathonsettings.html');
-
-    subathonConfigWindow.on('closed', () => {
-        subathonConfigWindow = null
-    });
-}
+    win.loadFile('subathonsettings.html');
+    return win;
+})
 
 // Take settings from settings window and save them
-ipcMain.on('save-sub-settings', (event, { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }) => {
-  fs.writeFileSync('subSettings.json', JSON.stringify({ startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement }, null, 2));
-  console.log('Received credentials:', { startingTime, randomHourChance, oddsForMultiplier, amountForMultiplier, tier1Increment, tier2Increment, tier3Increment, bitIncrement, memberIncrement, superchatIncrement });
-  console.log(startingTime);
-  mainWindow.webContents.send('set-start-time', startingTime);
-  if (configWindow) {
+ipcMain.on('save-sub-settings', (event, settings) => {
+    writeJsonFile('subSettings.json', settings);
+    console.log('Received credentials:', settings);
+    if (settings.startingTime) {
+        timer.setStartTimeSeconds(settings.startingTime)
+    }
     configWindow.close();
-  }
 });
 
 // Get and Restore settings
 ipcMain.handle('get-sub-settings', async () => {
-  let config = { startingTime: '', randomHourChance: '', oddsForMultiplier: '', amountForMultiplier: '', tier1Increment: '', tier2Increment: '', tier3Increment: '', bitIncrement: '', memberIncrement: '', superchatIncrement: '' };
-  try {
-    if (fs.existsSync('subSettings.json')) {
-      const data = fs.readFileSync('subSettings.json', 'utf-8');
-      config = JSON.parse(data);
-      mainWindow.webContents.send('set-start-time', settings.startingTime);
-    }
-  } catch (err) {
-    console.error('Error reading subSettings.json:', err);
-  }
-  return config;
+    return getSubSettings();
 });
 
 ///
 /// API Key Window
 ///
 
-function createConfigWindow() {
-  if (configWindow) {
-    configWindow.focus();
-    return;
-  }
-
-  configWindow = new BrowserWindow({
-    width: 350,
-    height: 500,
-    autoHideMenuBar: true,
-    resizable: false,
-    parent: mainWindow,
-    modal: true,
-    icon: __dirname + 'img/icon.ico',
-    webPreferences: {
-      preload: path.join(__dirname, 'preloads/preload-apiconfig.js'),
-      nodeIntegration: false,
-      contextIsolation: false
-    }
-  });
-
-  configWindow.loadFile('config.html');
-
-  configWindow.on('closed', () => {
-    configWindow = null;
-  });
-}
-
-// Take keys from API key window and save them
-ipcMain.on('save-keys', (event, { twitchClientId, youtubeApiKey, clientId, refreshKey }) => {
-  fs.writeFileSync('apiConfig.json', JSON.stringify({ twitchClientId, youtubeApiKey, clientId, refreshKey }, null, 2));
-  console.log('Received credentials:', { twitchClientId, youtubeApiKey, clientId, refreshKey });
-  let config = { twitchClientId, youtubeApiKey, clientId, refreshKey }
-  if(twitchClientId !== '' && youtubeApiKey !== '' && clientId !== '')
-    {
-      disconnectTwitchWS();
-      twitchConnection = attemptTwitchConnect(config);
-    }
-
-  if (configWindow) {
-    configWindow.close();
-  }
-});
+const configWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
+        width: 350,
+        height: 500,
+        autoHideMenuBar: true,
+        resizable: false,
+        parent: mainWindow,
+        modal: true,
+        icon: __dirname + 'img/icon.ico',
+        webPreferences: {
+            preload: path.join(__dirname, 'preloads/preload-apiconfig.js'),
+        }
+    });
+    win.loadFile('apiConfig.html');
+    return win;
+})
 
 // Get and Restore API Keys
-ipcMain.handle('get-api-keys', async () => {
-  let config = { twitchClientId: '', youtubeApiKey: '', clientId: '', refreshKey: '' };
-  try {
-    if (fs.existsSync('apiConfig.json')) {
-      const data = fs.readFileSync('apiConfig.json', 'utf-8');
-      config = JSON.parse(data);
-      if(config.twitchClientId !== '' && config.youtubeApiKey !== '' && config.clientId !== '')
-      {
+ipcMain.handle('get-api-config', () => {
+    const config = readJsonFile('apiConfig.json', {});
+    if (config.twitchClientId && config.youtubeApiKey && config.clientId) {
         disconnectTwitchWS();
-        twitchConnection = attemptTwitchConnect(config);
-      }
-      return config;
+        attemptTwitchConnect();
     }
-  } catch (err) {
-    console.error('Error reading apiConfig.json:', err);
-    return null;
-  }
+    return config;
 });
 
+timer.on('update', (state, metadata) => {
+    const log = {logType: 'timerState', logData: {state, metadata}}
+    timerLogWrite(log)
+})
 
-// Refresh API keys
-ipcMain.handle('regenerate-tokens', async () => {
-  console.log('Refreshing token with key:', config.refreshKey); // Debug
-  if (!config.refreshKey) {
-    throw new Error('Refresh key is missing. Check apiConfig.json.');
-  }
-  try {
-    const response = await axios.get(`https://twitchtokengenerator.com/api/refresh/${config.refreshKey}`);
-    console.log('Token refresh response:', response.data); // Debug response
-    return response.data;
-  } catch (error) {
-    console.error('Error refreshing token:', error.response ? error.response.data : error.message);
-    throw new Error(error.response ? error.response.data : error.message);
-  }
+ipcMain.handle('get-logs', () => {
+    const logs = readFile('logs.json', '').split('\n').filter(line => line !== '')
+    return logs.map(i => JSON.parse(i))
 });
-
 
 ///
 /// Theme Selector
 ///
 
-function createThemeWindow() {
-  if (themeWindow) {
-    themeWindow.focus();
-    return;
-  }
-
-  themeWindow = new BrowserWindow({
-    width: 350,
-    height: 700,
-    autoHideMenuBar: true,
-    resizable: false,
-    parent: mainWindow,
-    modal: true,
-    icon: __dirname + 'img/icon.ico',
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  });
-
-  themeWindow.loadFile('themeselector.html');
-
-  themeWindow.on('closed', () => {
-    themeWindow = null;
-  });
-}
+const themeWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
+        width: 350,
+        height: 700,
+        autoHideMenuBar: true,
+        resizable: false,
+        parent: mainWindow,
+        modal: true,
+        icon: __dirname + 'img/icon.ico',
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+    win.loadFile('themeselector.html');
+    return win;
+})
 
 ipcMain.on('apply-theme', (event, themeCssPath) => {
-  mainWindow.webContents.send('apply-theme', themeCssPath);
+    mainWindow.webContents.send('apply-theme', themeCssPath);
 });
 
 ///
 /// Theme Creator
 ///
 
-function createthemeCreatorWindow() {
-  if (themeCreatorWindow) {
-    themeCreatorWindow.focus();
-    return;
-  }
-
-  themeCreatorWindow = new BrowserWindow({
-    width: 350,
-    height: 700,
-    autoHideMenuBar: true,
-    resizable: false,
-    parent: mainWindow,
-    modal: true,
-    icon: __dirname + 'img/icon.ico',
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  });
-
-  themeCreatorWindow.loadFile('themecreator.html');
-
-  themeCreatorWindow.on('closed', () => {
-    themeCreatorWindow = null;
-  });
-}
-
+const themeCreatorWindow = new SingletonWindow(() => {
+    const win = new BrowserWindow({
+        width: 350,
+        height: 700,
+        autoHideMenuBar: true,
+        resizable: false,
+        parent: mainWindow,
+        modal: true,
+        icon: __dirname + 'img/icon.ico',
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+    win.loadFile('themecreator.html');
+    return win;
+})
 
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+    if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+    }
 });
-function attemptTwitchConnect(c)
-{
-    const { getOAuthToken } = require('./twitch');
-    const { startTwitchListener } = require('./twitchListener');
-    const oauthToken = c.youtubeApiKey;
-    const broadcasterUsername = c.twitchClientId;
-    const clientid = c.clientId;
-    const refreshKey = c.refreshKey;
-
+function attemptTwitchConnect() {
+    const { twitchUsername } = readJsonFile('apiConfig.json');
 
     console.log("Attempting connect to Twitch API");
 
     (async () => {
-      // Fetch broadcaster ID
-      const userResponse = await fetch(`https://api.twitch.tv/helix/users?login=${broadcasterUsername}`, {
-          method: 'GET',
-          headers: {
-              'Client-ID': clientid,
-              'Authorization': `Bearer ${oauthToken}`
-          }
-      });
-      const userData = await userResponse.json();
-      console.log(userData);
-      const broadcasterId = userData.data[0].id;
+        // Fetch broadcaster ID
+        const userResponse = await apiRequest(`https://api.twitch.tv/helix/users?login=${twitchUsername}`, { method: 'GET' });
+        const userData = await userResponse.json();
+        console.log(userData);
+        const broadcasterId = userData.data[0].id;
 
-      // Start the Twitch listener
-      startTwitchListener(clientid, oauthToken, broadcasterId, settings, mainWindow);
+        // Start the Twitch listener
+        if (twitchConnection !== null) twitchConnection.disconnect()
+        twitchConnection = new TwitchListener(broadcasterId);
+        twitchConnection.on('ws-keepalive', (ts) => mainWindow.webContents.send('ws-keepalive', ts))
+        twitchConnection.on('ws-setup-complete', () => mainWindow.webContents.send('ws-setup-complete'))
     })();
 }
 
-function disconnectTwitchWS()
-{
-  console.log("Attempting to disconnect from Twitch WS.");
-  const { disconnectTwitchListener } = require('./twitchListener');
-  if(twitchConnection !== null)
-    var result = disconnectTwitchListener();
-
-  console.log(result);
+function disconnectTwitchWS() {
+    console.log("Attempting to disconnect from Twitch WS.");
+    if (twitchConnection !== null) twitchConnection.disconnect()
 }
 
-if(config.twitchClientId !== '' && config.youtubeApiKey !== '' && config.clientId !== '')
-  {
-    twitchConnection = attemptTwitchConnect(config);
-  }
+attemptTwitchConnect();
 
 /*
 //STREAMELEMENTS
