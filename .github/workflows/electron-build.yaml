@@ -19,4 +19,6 @@ jobs:
         run: npm install
       - name: 'Electron build'
         run: npm exec @electron/packager ./
-      - run: ls
+      - uses: actions/upload-artifact@v4
+        with:
+          path: subathon-${{ fromJSON('{"macos-latest": "subathon-darwin-arm64", "ubuntu-latest": "linux-x64", "windows-latest": "win32-x64"}')[matrix.os] }}
