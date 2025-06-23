@@ -105,6 +105,9 @@ class TwitchListener extends EventEmitter {
                     if (message.metadata.subscription_type === 'channel.subscribe') {
                         subathon_state.addSub(event.tier, event)
                     }
+                    if (message.metadata.subscription_type === 'channel.subscription.message') {
+                        subathon_state.addSub(event.tier, event)
+                    }
                     if (message.metadata.subscription_type === 'channel.cheer') {
                         subathon_state.addBits(event.bits, event)
                     }
@@ -171,6 +174,12 @@ class TwitchListener extends EventEmitter {
         const subscriptions = [
             {
                 type: 'channel.subscribe',
+                version: '1',
+                condition: { broadcaster_user_id: this.#broadcasterId },
+                transport: { method: 'websocket', session_id: sessionId }
+            },
+            {
+                type: 'channel.subscription.message',
                 version: '1',
                 condition: { broadcaster_user_id: this.#broadcasterId },
                 transport: { method: 'websocket', session_id: sessionId }
