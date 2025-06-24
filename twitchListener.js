@@ -103,7 +103,10 @@ class TwitchListener extends EventEmitter {
                 if (message.metadata?.message_type === 'notification') {
                     const event = message.payload.event;
                     if (message.metadata.subscription_type === 'channel.subscribe') {
-                        subathon_state.addSub(event.tier, event)
+                        // Regular subs are counted when the message is sent with `channel.subscription.message`
+                        if (event.is_gift) {
+                            subathon_state.addSub(event.tier, event)
+                        }
                     }
                     if (message.metadata.subscription_type === 'channel.subscription.message') {
                         subathon_state.addSub(event.tier, event)
