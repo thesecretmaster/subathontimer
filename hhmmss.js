@@ -13,7 +13,7 @@ function toHhMmSs(v) {
   const minutes = Math.floor(v / 60) % 60
   const seconds = v % 60
   let str = seconds.toString().padStart(2, '0')
-  if (minutes > 0) str = `${hours > 0 ? minutes.toString().padStart(2, '0') : minutes}:${str}`
+  if (minutes > 0 || hours > 0) str = `${hours > 0 ? minutes.toString().padStart(2, '0') : minutes}:${str}`
   if (hours > 0) str = `${hours}:${str}`
   return str
 }
