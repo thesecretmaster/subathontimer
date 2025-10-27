@@ -98,7 +98,7 @@ function processStateQueue() {
 
         if (metadata.secondsAdded) {
             const formattedTime = formatTime(metadata.secondsAdded);
-            displayElement.innerText = `+${formattedTime}`;
+            displayElement.textContent = `+${formattedTime}`;
             applyColorEffects(displayElement, displayColor);
         }
     }
@@ -133,6 +133,7 @@ function processStateQueue() {
             displayElement.style.opacity = "0";
             setTimeout(() => {
                 displayElement.style.display = "none";
+                displayElement.textContent = ""
                 processingAddition = false;
                 skipAnimation = false
                 console.log("Done processing state update")
