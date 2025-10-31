@@ -5,6 +5,8 @@ on: push
 jobs:
   build-win:
     runs-on: ubuntu-latest
+    outputs:
+      artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -12,7 +14,48 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npx @electron/packager ./ --platform=win32 --out=dist/
-      - uses: actions/upload-artifact@v4
+      - name: upload-artifact
+        uses: actions/upload-artifact@v4
         with:
           name: subtimer
           path: dist
+
+  publish-release:
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    needs: build-win
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          artifact-ids: ${{ needs.build-win.outputs.artifact-id }}
+          path: subtimer
+      - run: zip -r subtimer.zip subtimer
+      - uses: actions/github-script@v8
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const d = new Date();
+            const releaseNum = `0.0.0.${d.getFullYear()}${(d.getMonth() + 1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}`;
+            await github.rest.git.createTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: releaseNum,
+              message: `Create release ${releaseNum}`,
+              type: 'commit',
+              object: context.sha
+            });
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: releaseNum,
+              name: `${releaseNum}: ${process.env.COMMIT_MESSAGE}`
+            });
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.data.id,
+              name: 'subtimer.zip',
+              data: fs.readFileSync('subtimer.zip')
+            });
