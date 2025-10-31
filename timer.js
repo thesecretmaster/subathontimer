@@ -66,6 +66,34 @@ function currentMsRemaining(state = null) {
     return v >= 0 ? v : 0
 }
 
+function updateTimerValue(v) {
+    timerElement.textContent = ""
+    if (v === undefined) v = convertSecondsToHMS(currentSecondsRemaining());
+    const const_width_hacks = window.getComputedStyle(document.body).getPropertyValue('--timer-constant-width-hack') == 'true';
+    if (const_width_hacks) {
+        while (timerElement.children.length != v.length) {
+            if (timerElement.children.length > v.length) {
+                timerElement.removeChild(timerElement.firstChild)
+            } else {
+                const letter = document.createElement('span')
+                timerElement.appendChild(letter)
+            }
+        }
+        for (const [idx, letter] of [...v].entries()) {
+            const e = timerElement.children[idx]
+            if (letter.match(/\d/)) {
+                e.textContent = '0'
+                const width = e.offsetWidth
+                e.style.width = width
+                e.classList.add('number')
+            }
+            e.textContent = letter
+        }
+    } else {
+        timerElement.textContent = v
+    }
+}
+
 function processStateQueue() {
     if (processingAddition || stateQueue.length === 0) return;
 
@@ -76,7 +104,7 @@ function processStateQueue() {
 
     if (currentState === null) {
         currentState = newState
-        timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+        updateTimerValue()
         processingAddition = false;
         console.log("Done processing inital state update")
         return
@@ -115,14 +143,14 @@ function processStateQueue() {
             }
             console.log("Skipping animation, jumping to", newState);
             currentState = newState;
-            timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+            updateTimerValue()
             skipAnimation = false
         }
         const currentMs = currentMsRemaining();
         const newMs = currentMsRemaining(newState);
         const diff = Math.max(Math.min(1000, newMs - currentMs), -1000);
         currentState.ms_remaining += diff
-        timerElement.textContent = convertSecondsToHMS(currentSecondsRemaining());
+        updateTimerValue()
         if (Math.abs(diff) < 1000) {
             currentState = newState
             clearInterval(adjustmentInterval);
@@ -158,11 +186,11 @@ setInterval(() => {
     if (processingAddition) return
     const remainingSeconds = currentSecondsRemaining()
     if (remainingSeconds === null) {
-        timerElement.textContent = "N/A"
+        updateTimerValue("N/A")
         return
     }
     if (remainingSeconds > 0) remainingSeconds === 0
-    timerElement.textContent = convertSecondsToHMS(remainingSeconds);
+    updateTimerValue()
 }, 100)
 
 function convertSecondsToHMS(seconds) {
